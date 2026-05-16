@@ -1,0 +1,56 @@
+{
+  "app": {
+    "name": "Quickrons",
+    "tagline": "Authentic Malabar food, fast"
+  },
+  "home": {
+    "greeting_morning": "Good morning",
+    "greeting_evening": "Good evening",
+    "location_label": "Deliver to",
+    "tabs": {
+      "now": "Now",
+      "now_desc": "Anything in 30 min",
+      "preorder": "Pre-order",
+      "preorder_desc": "Schedule from top kitchens"
+    },
+    "filters": { "all": "All", "forra": "Forra", "home": "Home cooks", "hotel": "Hotels", "caterer": "Catering" },
+    "section_kitchens": "{{count}} kitchens delivering near you",
+    "forra_spotlight_tag": "OUR FLAGSHIP",
+    "forra_spotlight_title": "Forra Foods Kitchen",
+    "forra_spotlight_sub": "Daily-fresh thalis, biryanis & breakfast tiffins"
+  },
+  "cart": {
+    "title": "Your cart",
+    "empty_title": "Your cart is empty",
+    "empty_desc": "Browse kitchens and add a dish to get started.",
+    "browse_button": "Browse kitchens",
+    "subtotal": "Item subtotal",
+    "delivery_fee": "Delivery fee",
+    "platform_fee": "Platform fee",
+    "gst": "GST (5%)",
+    "to_pay": "To pay",
+    "checkout_cta": "Proceed to checkout",
+    "view_cart": "View cart"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "deliver_to": "Deliver to",
+    "payment": "Payment",
+    "instructions": "Delivery instructions",
+    "trust_message": "Tamper-evident packaging. 100% replacement guarantee.",
+    "place_order": "Place order"
+  },
+  "track": {
+    "eta_label": "Estimated arrival",
+    "stages": {
+      "placed": "Order placed",
+      "cooking": "Kitchen is cooking",
+      "sealed": "Sealed & picked up",
+      "enroute": "Rider en route",
+      "delivered": "Delivered"
+    },
+    "rider_label": "Quickrons rider",
+    "delivered_cta": "Order delivered — Rate your experience"
+  },
+  "common": { "add": "ADD", "back": "Back", "min": "min", "rating": "rating", "kitchen": "kitchen", "delivery": "delivery", "language": "Language" }
+}
