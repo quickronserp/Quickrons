@@ -39,7 +39,12 @@ async function request(path, { method = 'GET', body, token } = {}) {
   return data;
 }
 
-export const sendOtp   = (phone)       => request('/api/v1/auth/send-otp',   { method: 'POST', body: { phone } });
-export const verifyOtp = (phone, code) => request('/api/v1/auth/verify-otp', { method: 'POST', body: { phone, code } });
+// Backend (backend/src/index.js) reads req.body.otp (not "code") and accepts role.
+// Always send role explicitly so the contract is unambiguous.
+export const sendOtp = (phone, role = 'CUSTOMER') =>
+  request('/api/v1/auth/send-otp', { method: 'POST', body: { phone, role } });
+
+export const verifyOtp = (phone, otp, role = 'CUSTOMER') =>
+  request('/api/v1/auth/verify-otp', { method: 'POST', body: { phone, otp, role } });
 
 export { ApiError };
