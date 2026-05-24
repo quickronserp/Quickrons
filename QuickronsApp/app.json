@@ -10,7 +10,9 @@
       "backgroundColor": "#0F172A",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.forrafoods.quickrons"

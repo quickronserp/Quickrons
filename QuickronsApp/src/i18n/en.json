@@ -3,6 +3,19 @@
     "name": "Quickrons",
     "tagline": "Authentic Malabar food, fast"
   },
+  "auth": {
+    "login_title": "Welcome to Quickrons",
+    "login_subtitle": "Enter your phone number to continue",
+    "phone_label": "Phone number",
+    "continue": "Continue",
+    "terms": "By continuing you agree to our Terms & Privacy Policy",
+    "otp_title": "Verify your number",
+    "otp_subtitle": "We've sent a 6-digit code to +91 {{phone}}",
+    "otp_resend": "Resend OTP",
+    "otp_verify": "Verify & continue",
+    "resend_in": "Resend in {{seconds}}s",
+    "edit": "Edit"
+  },
   "home": {
     "greeting_morning": "Good morning",
     "greeting_evening": "Good evening",
