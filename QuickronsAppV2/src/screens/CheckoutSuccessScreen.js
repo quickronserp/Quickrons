@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     shadowColor: colors.brand, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
-  heroTitle: { marginTop: 16, fontSize: 22, fontWeight: '800', color: colors.ink, textAlign: 'center' },
+  heroTitle: { marginTop: 16, fontSize: 22, fontWeight: '800', color: colors.ink, textAlign: 'center', letterSpacing: -0.3 },
   heroSub:   { marginTop: 6, fontSize: 13, color: colors.inkSoft, textAlign: 'center', lineHeight: 19, paddingHorizontal: 16 },
 
   card: {
@@ -137,6 +137,8 @@ const styles = StyleSheet.create({
   trackBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: radii.lg, paddingVertical: 14,
+    shadowColor: colors.brand, shadowOpacity: 0.28, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
   trackTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
   homeBtn: {

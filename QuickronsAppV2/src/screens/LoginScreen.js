@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.hero}>
           <View style={styles.logo}><Text style={styles.logoLetter}>Q</Text></View>
-          <Text style={styles.brandName}>Quickrons</Text>
+          <Text style={styles.brandNameBase}>Quickrons</Text>
           <Text style={styles.tagline}>Authentic Malabar food, fast</Text>
         </View>
 
@@ -92,9 +92,11 @@ const styles = StyleSheet.create({
   logo: {
     width: 72, height: 72, borderRadius: 22, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.brand, shadowOpacity: 0.35, shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 }, elevation: 6,
   },
   logoLetter: { color: '#fff', fontSize: 36, fontWeight: '800' },
-  brandName: { marginTop: 14, fontSize: 28, fontWeight: '800', color: colors.ink },
+  brandNameBase: { marginTop: 14, fontSize: 28, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
   tagline:   { marginTop: 4, fontSize: 14, color: colors.inkSoft },
 
   card: {
@@ -111,7 +113,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md,
     overflow: 'hidden', backgroundColor: colors.bgAlt,
   },
-  inputRowActive: { borderColor: colors.brand, backgroundColor: '#F0FDF4' },
+  inputRowActive: { borderColor: colors.brand, backgroundColor: '#FEF1EC' },
   prefix: {
     paddingHorizontal: 14, paddingVertical: 14,
     borderRightWidth: 1, borderRightColor: colors.border,
@@ -129,8 +131,10 @@ const styles = StyleSheet.create({
   cta: {
     marginTop: 20, backgroundColor: colors.brand, borderRadius: radii.lg,
     paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.brand, shadowOpacity: 0.28, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
-  ctaDisabled: { opacity: 0.45 },
+  ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
   ctaInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ctaTxt:   { color: '#fff', fontWeight: '800', fontSize: 15 },
   terms:    { marginTop: 16, fontSize: 11, color: colors.inkMuted, textAlign: 'center', lineHeight: 16 },

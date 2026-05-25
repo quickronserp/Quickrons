@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.lg,
   },
-  welcome: { fontSize: 22, fontWeight: '800', color: colors.ink },
+  welcome: { fontSize: 22, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
   sub: { fontSize: 13, color: colors.inkSoft, marginTop: 2 },
   subBold: { fontWeight: '700', color: colors.ink },
   signOutBtn: {
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   spotBadge: { alignSelf: 'flex-start', backgroundColor: colors.accent + '22', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   spotBadgeTxt: { fontSize: 10, fontWeight: '800', color: colors.accent, letterSpacing: 1 },
-  spotTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 8 },
+  spotTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 8, letterSpacing: -0.3 },
   spotSub:   { color: '#CBD5E1', fontSize: 13, marginTop: 4, lineHeight: 18 },
 
   sectionTitle: {
@@ -133,6 +133,8 @@ const styles = StyleSheet.create({
     marginHorizontal: space.lg, marginBottom: 10,
     padding: space.lg, borderRadius: radii.lg,
     backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
+    shadowColor: '#0F172A', shadowOpacity: 0.04, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 2 }, elevation: 1,
   },
   cardIcon: {
     width: 48, height: 48, borderRadius: 24,

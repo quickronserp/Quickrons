@@ -233,8 +233,10 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 52, height: 52, borderRadius: 18, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.brand, shadowOpacity: 0.30, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
-  heroTitle: { fontSize: 22, fontWeight: '800', color: colors.ink, marginTop: 12 },
+  heroTitle: { fontSize: 22, fontWeight: '800', color: colors.ink, marginTop: 12, letterSpacing: -0.3 },
   heroSub:   { fontSize: 13, color: colors.inkSoft, marginTop: 4, lineHeight: 19 },
 
   infoCol: { paddingHorizontal: space.lg, gap: 8, marginTop: 12 },
@@ -290,8 +292,10 @@ const styles = StyleSheet.create({
   submit: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: radii.lg, paddingVertical: 14,
+    shadowColor: colors.brand, shadowOpacity: 0.28, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
-  submitDisabled: { opacity: 0.45 },
+  submitDisabled: { opacity: 0.45, shadowOpacity: 0 },
   submitTxt:      { color: '#fff', fontWeight: '800', fontSize: 15 },
   errorTxt:       { color: colors.danger, fontSize: 12, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
 

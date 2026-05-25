@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   etaLabel: { color: '#94A3B8', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
-  etaValue: { color: '#fff', fontSize: 40, fontWeight: '800', marginTop: 6, fontVariant: ['tabular-nums'] },
+  etaValue: { color: '#fff', fontSize: 40, fontWeight: '800', marginTop: 6, fontVariant: ['tabular-nums'], letterSpacing: -0.5 },
   etaStage: { color: colors.accent, fontSize: 13, fontWeight: '700', marginTop: 4 },
 
   sectionTitle: {
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start',
     marginHorizontal: space.lg, marginTop: space.sm,
     padding: space.md, borderRadius: radii.md,
-    backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: colors.brand + '55',
+    backgroundColor: '#FEF1EC', borderWidth: 1, borderColor: colors.brand + '55',
   },
   sealTitle: { fontSize: 13, fontWeight: '800', color: colors.ink },
   sealDesc:  { marginTop: 3, fontSize: 12, color: colors.inkSoft, lineHeight: 17 },
@@ -190,6 +190,8 @@ const styles = StyleSheet.create({
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: radii.lg, paddingVertical: 14,
+    shadowColor: colors.brand, shadowOpacity: 0.20, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 4,
   },
   ctaTxt: { fontWeight: '800', fontSize: 15 },
 });

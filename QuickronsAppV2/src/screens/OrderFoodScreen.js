@@ -283,14 +283,14 @@ const styles = StyleSheet.create({
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     borderWidth: 1, borderColor: colors.brand, borderRadius: radii.md,
-    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#F0FDF4',
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FEF1EC',
   },
   addTxt: { color: colors.brand, fontSize: 13, fontWeight: '800' },
 
   qtyBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     borderWidth: 1, borderColor: colors.brand, borderRadius: radii.md,
-    paddingHorizontal: 6, paddingVertical: 4, backgroundColor: '#F0FDF4',
+    paddingHorizontal: 6, paddingVertical: 4, backgroundColor: '#FEF1EC',
   },
   qtyStep: { padding: 4 },
   qtyTxt:  { fontSize: 14, fontWeight: '800', color: colors.brand, minWidth: 14, textAlign: 'center' },
@@ -308,7 +308,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.brand, borderRadius: radii.lg,
     paddingHorizontal: 20, paddingVertical: 14,
+    shadowColor: colors.brand, shadowOpacity: 0.28, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
-  checkoutDisabled: { opacity: 0.45 },
+  checkoutDisabled: { opacity: 0.45, shadowOpacity: 0 },
   checkoutTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });

@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   back: { padding: 14, alignSelf: 'flex-start' },
   body: { paddingHorizontal: space.lg, paddingTop: space.md },
-  title:    { fontSize: 26, fontWeight: '800', color: colors.ink },
+  title:    { fontSize: 26, fontWeight: '800', color: colors.ink, letterSpacing: -0.3 },
   subtitle: { marginTop: 6, fontSize: 14, color: colors.inkSoft, lineHeight: 20 },
   editRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
   editTxt:  { fontSize: 13, color: colors.brand, fontWeight: '700' },
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgAlt,
     alignItems: 'center', justifyContent: 'center',
   },
-  otpBoxActive: { borderColor: colors.brand, backgroundColor: '#F0FDF4' },
+  otpBoxActive: { borderColor: colors.brand, backgroundColor: '#FEF1EC' },
   otpBoxFilled: { borderColor: colors.brand, backgroundColor: colors.bg },
   otpDigit:     { fontSize: 22, fontWeight: '800', color: colors.ink },
 
@@ -159,8 +159,10 @@ const styles = StyleSheet.create({
   cta: {
     marginTop: 28, backgroundColor: colors.brand, borderRadius: radii.lg,
     paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.brand, shadowOpacity: 0.28, shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 }, elevation: 5,
   },
-  ctaDisabled: { opacity: 0.45 },
+  ctaDisabled: { opacity: 0.45, shadowOpacity: 0 },
   ctaInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ctaTxt:   { color: '#fff', fontWeight: '800', fontSize: 15 },
 
