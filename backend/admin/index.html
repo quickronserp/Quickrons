@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1024" />
+<title>Quickrons Admin</title>
+<style>
+  /* Malabar-green Quickrons palette — match the mobile app */
+  :root {
+    --brand:  #15803D;
+    --brandDark:#166534;
+    --bg:     #F8FAFC;
+    --card:   #FFFFFF;
+    --ink:    #0F172A;
+    --ink2:   #475569;
+    --muted:  #94A3B8;
+    --border: #E2E8F0;
+    --accent: #F59E0B;
+    --danger: #DC2626;
+    --ok:     #16A34A;
+    --info:   #2563EB;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+
+  header{background:#fff;border-bottom:1px solid var(--border);padding:14px 24px;
+    display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10}
+  .logo{width:34px;height:34px;border-radius:9px;background:var(--brand);color:#fff;
+    display:grid;place-items:center;font-weight:800;font-size:18px;
+    box-shadow:0 6px 14px rgba(21,128,61,.35)}
+  .title{font-weight:800;font-size:16px;line-height:1.1}
+  .sub{font-size:12px;color:var(--ink2)}
+  .pill{margin-left:auto;background:#F0FDF4;color:var(--brand);
+    border:1px solid #BBF7D0;padding:4px 10px;border-radius:999px;
+    font-size:11px;font-weight:800;letter-spacing:.4px}
+  .refresh{background:var(--ink);color:#fff;border:0;border-radius:8px;
+    padding:8px 14px;font-weight:700;cursor:pointer;font-size:12px;letter-spacing:.3px}
+
+  nav.tabs{padding:14px 24px 0;background:var(--bg);border-bottom:1px solid var(--border);
+    display:flex;gap:6px}
+  .tab{appearance:none;background:transparent;border:0;cursor:pointer;
+    padding:10px 16px;border-radius:10px 10px 0 0;font-weight:700;color:var(--ink2);
+    font-size:13px;border:1px solid transparent;border-bottom:0}
+  .tab.active{background:#fff;color:var(--ink);border-color:var(--border)}
+  .count{background:#E2E8F0;color:var(--ink2);font-size:11px;
+    padding:2px 7px;border-radius:999px;margin-left:6px;font-weight:800}
+  .tab.active .count{background:var(--brand);color:#fff}
+
+  main{padding:18px 24px 60px}
+  .panel{background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+  .panel + .panel{margin-top:12px}
+  .panel-h{padding:12px 16px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between}
+  .panel-h h2{margin:0;font-size:14px;font-weight:800;letter-spacing:.3px;color:var(--ink2);text-transform:uppercase}
+  .empty{padding:36px;text-align:center;color:var(--muted);font-size:13px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:11px 14px;border-top:1px solid var(--border);text-align:left;vertical-align:middle}
+  th{background:#F8FAFC;color:var(--ink2);font-size:11px;font-weight:800;letter-spacing:.5px;
+    text-transform:uppercase;border-top:0;border-bottom:1px solid var(--border)}
+  tr:hover td{background:#FAFCFB}
+  td.right{text-align:right}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+
+  .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;
+    font-weight:800;letter-spacing:.4px}
+  .b-PLACED            {background:#FEF3C7;color:#92400E}
+  .b-CONFIRMED         {background:#DBEAFE;color:#1E40AF}
+  .b-PREPARING         {background:#E0E7FF;color:#3730A3}
+  .b-READY_FOR_PICKUP  {background:#FCE7F3;color:#9D174D}
+  .b-PICKED_UP         {background:#CCFBF1;color:#115E59}
+  .b-OUT_FOR_DELIVERY  {background:#DCFCE7;color:#166534}
+  .b-DELIVERED         {background:#D1FAE5;color:#065F46}
+  .b-CANCELLED         {background:#FEE2E2;color:#991B1B}
+  .b-FAILED            {background:#FEE2E2;color:#991B1B}
+  .b-PENDING           {background:#FEF3C7;color:#92400E}
+  .b-APPROVED          {background:#D1FAE5;color:#065F46}
+  .b-REJECTED          {background:#FEE2E2;color:#991B1B}
+
+  .row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  button.act{appearance:none;border:1px solid var(--border);background:#fff;color:var(--ink);
+    padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
+  button.act:hover{border-color:var(--brand);color:var(--brand)}
+  button.act.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  button.act.primary:hover{background:var(--brandDark)}
+  button.act.danger {background:#fff;color:var(--danger);border-color:#FECACA}
+  button.act.danger:hover{background:var(--danger);color:#fff;border-color:var(--danger)}
+  button.act.info   {background:#fff;color:var(--info);border-color:#BFDBFE}
+  button.act.info:hover{background:var(--info);color:#fff;border-color:var(--info)}
+  button.act[disabled]{opacity:.45;cursor:not-allowed}
+
+  .errBar{background:#FEE2E2;color:#991B1B;border-bottom:1px solid #FECACA;
+    padding:10px 24px;font-size:13px;font-weight:600;display:none}
+  .errBar.show{display:block}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:10px;
+    font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Q</div>
+  <div>
+    <div class="title">Quickrons Admin</div>
+    <div class="sub">Perinthalmanna · Malappuram · live</div>
+  </div>
+  <span class="pill" id="health">checking…</span>
+  <button class="refresh" id="refreshBtn">Refresh</button>
+</header>
+
+<div class="errBar" id="errBar"></div>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="orders">Orders <span class="count" id="cOrders">0</span></button>
+  <button class="tab"        data-tab="riders">Rider applications <span class="count" id="cRiders">0</span></button>
+  <button class="tab"        data-tab="partners">Partner applications <span class="count" id="cPartners">0</span></button>
+</nav>
+
+<main>
+  <!-- Orders -->
+  <section id="tab-orders" class="tabPanel">
+    <div class="panel">
+      <div class="panel-h"><h2>Latest 50 orders</h2><span class="mono" id="ordersUpdated">—</span></div>
+      <div id="ordersBody"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- Rider applications -->
+  <section id="tab-riders" class="tabPanel" hidden>
+    <div class="panel">
+      <div class="panel-h"><h2>Rider applications</h2><span class="mono" id="ridersUpdated">—</span></div>
+      <div id="ridersBody"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+
+  <!-- Partner applications -->
+  <section id="tab-partners" class="tabPanel" hidden>
+    <div class="panel">
+      <div class="panel-h"><h2>Partner applications</h2><span class="mono" id="partnersUpdated">—</span></div>
+      <div id="partnersBody"><div class="empty">Loading…</div></div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// API base: same origin as this admin page (backend serves both).
+const API = location.origin;
+
+// ── helpers ───────────────────────────────────────────────────────────
+function $(id){ return document.getElementById(id); }
+function rupees(paise){ return '₹' + Math.round((paise||0)/100).toLocaleString('en-IN'); }
+function ago(iso){
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms/60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return m+'m ago';
+  const h = Math.floor(m/60);
+  if (h < 24) return h+'h ago';
+  return Math.floor(h/24)+'d ago';
+}
+function badge(s){ return '<span class="badge b-'+s+'">'+s.replace(/_/g,' ')+'</span>'; }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function showError(msg){
+  const el = $('errBar'); el.textContent = msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 5000);
+}
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+async function api(path, opts={}) {
+  const res = await fetch(API + path, {
+    method: opts.method || 'GET',
+    headers: { 'Content-Type':'application/json' },
+    body:    opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    const err = (data && data.error) || {};
+    throw new Error(err.message || ('HTTP '+res.status));
+  }
+  return data;
+}
+
+// ── tabs ──────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tabPanel').forEach(p => p.hidden = true);
+    $('tab-' + btn.dataset.tab).hidden = false;
+  });
+});
+
+// ── ORDERS ────────────────────────────────────────────────────────────
+const ORDER_NEXT = {
+  PLACED:            ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED:         ['PREPARING', 'CANCELLED'],
+  PREPARING:         ['READY_FOR_PICKUP', 'CANCELLED'],
+  READY_FOR_PICKUP:  ['ASSIGN_RIDER', 'CANCELLED'],
+  PICKED_UP:         ['OUT_FOR_DELIVERY', 'FAILED'],
+  OUT_FOR_DELIVERY:  ['DELIVERED', 'FAILED'],
+  DELIVERED:         [],
+  CANCELLED:         [],
+  FAILED:            [],
+};
+const ACTION_LABEL = {
+  CONFIRMED:'Confirm', PREPARING:'Start preparing',
+  READY_FOR_PICKUP:'Mark ready', ASSIGN_RIDER:'Assign rider',
+  OUT_FOR_DELIVERY:'Out for delivery', DELIVERED:'Mark delivered',
+  CANCELLED:'Cancel', FAILED:'Mark failed',
+};
+
+async function loadOrders() {
+  try {
+    const { orders } = await api('/api/v1/orders');
+    $('cOrders').textContent = orders.length;
+    $('ordersUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    if (!orders.length) { $('ordersBody').innerHTML = '<div class="empty">No orders yet.</div>'; return; }
+    $('ordersBody').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Order #</th><th>Customer</th><th>Items</th><th class="right">Total</th>
+          <th>Status</th><th>Placed</th><th class="right" style="min-width:300px">Actions</th>
+        </tr></thead>
+        <tbody>${orders.map(orderRow).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    showError('Failed to load orders: ' + e.message);
+    $('ordersBody').innerHTML = '<div class="empty">Unable to load orders. Check backend.</div>';
+  }
+}
+function orderRow(o) {
+  const nextActions = ORDER_NEXT[o.status] || [];
+  const btns = nextActions.map(a => {
+    if (a === 'ASSIGN_RIDER')
+      return `<button class="act info" data-assign="${o.id}">Assign rider (mock)</button>`;
+    const cls = (a==='CANCELLED'||a==='FAILED') ? 'danger' : 'primary';
+    return `<button class="act ${cls}" data-order="${o.id}" data-status="${a}">${ACTION_LABEL[a]||a}</button>`;
+  }).join('');
+  const itemSummary = (o.items||[]).map(i => `${esc(i.name)} ×${i.qty}`).join(', ');
+  return `<tr>
+    <td><span class="mono">${esc(o.orderNumber)}</span></td>
+    <td>${esc(o.customerPhone)}</td>
+    <td><div style="max-width:260px;font-size:12px;color:var(--ink2)">${esc(itemSummary)}</div>
+        <div style="font-size:11px;color:var(--muted)">${o.itemCount} item${o.itemCount>1?'s':''}</div></td>
+    <td class="right mono"><b>${rupees(o.totalPaise)}</b></td>
+    <td>${badge(o.status)}</td>
+    <td><span class="mono">${ago(o.createdAt)}</span></td>
+    <td class="right"><div class="row-actions">${btns || '<span style="color:var(--muted);font-size:11px">— terminal —</span>'}</div></td>
+  </tr>`;
+}
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-order]');
+  const r = e.target.closest('[data-assign]');
+  if (t) {
+    const { order, status } = t.dataset;
+    try {
+      await api(`/api/v1/orders/${order}/status`, { method:'POST', body:{ status } });
+      toast(`Order → ${status.replace(/_/g,' ')}`);
+      loadOrders();
+    } catch (err) { showError('Status update failed: ' + err.message); }
+  }
+  if (r) {
+    const id = r.dataset.assign;
+    try {
+      const { assignedRider } = await api(`/api/v1/orders/${id}/assign-rider`, { method:'POST' });
+      toast(`Assigned: ${assignedRider} → PICKED UP`);
+      loadOrders();
+    } catch (err) { showError('Assign failed: ' + err.message); }
+  }
+});
+
+// ── RIDER APPS ────────────────────────────────────────────────────────
+async function loadRiders() {
+  try {
+    const { applications } = await api('/api/v1/riders/applications');
+    $('cRiders').textContent = applications.length;
+    $('ridersUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    if (!applications.length) { $('ridersBody').innerHTML = '<div class="empty">No rider applications.</div>'; return; }
+    $('ridersBody').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Vehicle</th><th>Location</th>
+          <th>Status</th><th>Applied</th><th class="right" style="min-width:200px">Actions</th>
+        </tr></thead>
+        <tbody>${applications.map(riderRow).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    showError('Failed to load rider applications: ' + e.message);
+    $('ridersBody').innerHTML = '<div class="empty">Unable to load.</div>';
+  }
+}
+function riderRow(a) {
+  const isPending = a.status === 'PENDING';
+  return `<tr>
+    <td><b>${esc(a.fullName)}</b></td>
+    <td>${esc(a.phone)}</td>
+    <td>${esc(a.vehicleType)}</td>
+    <td>${esc(a.location)}</td>
+    <td>${badge(a.status)}</td>
+    <td><span class="mono">${ago(a.createdAt)}</span></td>
+    <td class="right"><div class="row-actions">
+      <button class="act primary" data-rider="${a.id}" data-status="APPROVED" ${isPending?'':'disabled'}>Approve</button>
+      <button class="act danger"  data-rider="${a.id}" data-status="REJECTED" ${isPending?'':'disabled'}>Reject</button>
+    </div></td>
+  </tr>`;
+}
+document.addEventListener('click', async e => {
+  const r = e.target.closest('[data-rider]');
+  if (!r) return;
+  const { rider, status } = r.dataset;
+  try {
+    await api(`/api/v1/riders/applications/${rider}/status`, { method:'POST', body:{ status } });
+    toast(`Rider ${status.toLowerCase()}`);
+    loadRiders();
+  } catch (err) { showError('Rider update failed: ' + err.message); }
+});
+
+// ── PARTNER APPS ──────────────────────────────────────────────────────
+async function loadPartners() {
+  try {
+    const { applications } = await api('/api/v1/partners/applications');
+    $('cPartners').textContent = applications.length;
+    $('partnersUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    if (!applications.length) { $('partnersBody').innerHTML = '<div class="empty">No partner applications.</div>'; return; }
+    $('partnersBody').innerHTML = `
+      <table>
+        <thead><tr>
+          <th>Brand</th><th>Owner</th><th>Phone</th><th>Category</th><th>Location</th>
+          <th>Status</th><th>Applied</th><th class="right" style="min-width:200px">Actions</th>
+        </tr></thead>
+        <tbody>${applications.map(partnerRow).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    showError('Failed to load partner applications: ' + e.message);
+    $('partnersBody').innerHTML = '<div class="empty">Unable to load.</div>';
+  }
+}
+function partnerRow(a) {
+  const isPending = a.status === 'PENDING';
+  return `<tr>
+    <td><b>${esc(a.brand)}</b></td>
+    <td>${esc(a.ownerName)}</td>
+    <td>${esc(a.phone)}</td>
+    <td>${esc(a.category)}</td>
+    <td>${esc(a.location)}</td>
+    <td>${badge(a.status)}</td>
+    <td><span class="mono">${ago(a.createdAt)}</span></td>
+    <td class="right"><div class="row-actions">
+      <button class="act primary" data-partner="${a.id}" data-status="APPROVED" ${isPending?'':'disabled'}>Approve</button>
+      <button class="act danger"  data-partner="${a.id}" data-status="REJECTED" ${isPending?'':'disabled'}>Reject</button>
+    </div></td>
+  </tr>`;
+}
+document.addEventListener('click', async e => {
+  const p = e.target.closest('[data-partner]');
+  if (!p) return;
+  const { partner, status } = p.dataset;
+  try {
+    await api(`/api/v1/partners/applications/${partner}/status`, { method:'POST', body:{ status } });
+    toast(`Partner ${status.toLowerCase()}`);
+    loadPartners();
+  } catch (err) { showError('Partner update failed: ' + err.message); }
+});
+
+// ── HEALTH + ROOT REFRESH ─────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const h = await api('/health');
+    $('health').textContent = `backend ${h.status === 'Quickrons backend live' ? '✓' : '?'} · db ${h.db || '?'}`;
+    $('health').style.background = h.db === 'up' ? '#F0FDF4' : '#FEE2E2';
+    $('health').style.color      = h.db === 'up' ? 'var(--brand)' : '#991B1B';
+    $('health').style.borderColor= h.db === 'up' ? '#BBF7D0'      : '#FECACA';
+  } catch {
+    $('health').textContent = 'backend ✗';
+    $('health').style.background = '#FEE2E2'; $('health').style.color = '#991B1B';
+  }
+}
+function refreshAll() { checkHealth(); loadOrders(); loadRiders(); loadPartners(); }
+$('refreshBtn').addEventListener('click', refreshAll);
+
+// initial load + 10-second poll
+refreshAll();
+setInterval(refreshAll, 10000);
+</script>
+</body>
+</html>

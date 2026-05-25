@@ -30,4 +30,22 @@ router.get('/applications', asyncH(async (_req, res) => {
   res.json({ applications });
 }));
 
+// POST /api/v1/riders/applications/:id/status  { status: APPROVED | REJECTED | PENDING }
+router.post('/applications/:id/status', asyncH(async (req, res) => {
+  const { status } = req.body || {};
+  if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
+    throw BadRequest('Status must be APPROVED, REJECTED, or PENDING');
+  }
+  try {
+    const application = await prisma.riderApplication.update({
+      where: { id: req.params.id },
+      data:  { status },
+    });
+    res.json({ application });
+  } catch (e) {
+    if (e.code === 'P2025') throw BadRequest('Rider application not found');
+    throw e;
+  }
+}));
+
 module.exports = router;

@@ -63,16 +63,59 @@ router.get('/:id', asyncH(async (req, res) => {
 }));
 
 // GET /api/v1/orders?phone=9876543210  → recent orders for a phone
+// GET /api/v1/orders                  → admin: latest 50 across all customers
 router.get('/', asyncH(async (req, res) => {
-  const { phone } = req.query;
-  if (!/^\d{10}$/.test(String(phone || ''))) throw BadRequest('phone query param required');
+  const { phone, status, limit } = req.query;
+  const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+  const where = {};
+  if (phone) {
+    if (!/^\d{10}$/.test(String(phone))) throw BadRequest('Invalid phone format');
+    where.customerPhone = String(phone);
+  }
+  if (status) where.status = String(status).toUpperCase();
   const orders = await prisma.order.findMany({
-    where: { customerPhone: String(phone) },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-    include: { items: true },
+    where, orderBy: { createdAt: 'desc' }, take, include: { items: true },
   });
   res.json({ orders });
+}));
+
+// ── Admin actions ─────────────────────────────────────────────────────
+const VALID_STATUSES = [
+  'PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP',
+  'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'FAILED',
+];
+
+// POST /api/v1/orders/:id/status   { status }
+router.post('/:id/status', asyncH(async (req, res) => {
+  const { status } = req.body || {};
+  if (!VALID_STATUSES.includes(status)) {
+    throw BadRequest(`Invalid status. Use one of: ${VALID_STATUSES.join(', ')}`);
+  }
+  const existing = await prisma.order.findFirst({
+    where: { OR: [{ id: req.params.id }, { orderNumber: req.params.id }] },
+  });
+  if (!existing) throw NotFound('Order not found');
+  const order = await prisma.order.update({
+    where: { id: existing.id },
+    data:  { status },
+    include: { items: true },
+  });
+  res.json({ order });
+}));
+
+// POST /api/v1/orders/:id/assign-rider   (mock — transitions to PICKED_UP)
+router.post('/:id/assign-rider', asyncH(async (req, res) => {
+  const existing = await prisma.order.findFirst({
+    where: { OR: [{ id: req.params.id }, { orderNumber: req.params.id }] },
+  });
+  if (!existing) throw NotFound('Order not found');
+  // Mock assignment: just move to PICKED_UP (no rider FK on schema yet).
+  const order = await prisma.order.update({
+    where: { id: existing.id },
+    data:  { status: 'PICKED_UP' },
+    include: { items: true },
+  });
+  res.json({ order, assignedRider: 'Rajan (mock)' });
 }));
 
 module.exports = router;

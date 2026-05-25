@@ -1,5 +1,6 @@
 require('dotenv/config');
 
+const path    = require('path');
 const express = require('express');
 const cors    = require('cors');
 
@@ -29,6 +30,9 @@ app.use('/api/v1/menu',     menuRoutes);
 app.use('/api/v1/orders',   orderRoutes);
 app.use('/api/v1/riders',   riderRoutes);
 app.use('/api/v1/partners', partnerRoutes);
+
+// Admin dashboard (single static HTML file served from backend/admin/).
+app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
 
 // 404 + central error handler — always last.
 app.use(notFoundHandler);
