@@ -47,4 +47,32 @@ export const sendOtp = (phone, role = 'CUSTOMER') =>
 export const verifyOtp = (phone, otp, role = 'CUSTOMER') =>
   request('/api/v1/auth/verify-otp', { method: 'POST', body: { phone, otp, role } });
 
+// ─── Phase 2: persistence ─────────────────────────────────────────────
+// Menu (optional — frontend keeps mock dishes for now but can switch any time).
+export const fetchMenu = () =>
+  request('/api/v1/menu');
+
+// Orders
+export const createOrder = ({ customerPhone, items }) =>
+  request('/api/v1/orders', {
+    method: 'POST',
+    body: { customerPhone, items },
+  });
+
+export const getOrder = (idOrNumber) =>
+  request(`/api/v1/orders/${encodeURIComponent(idOrNumber)}`);
+
+// Onboarding applications
+export const applyAsRider = ({ fullName, phone, vehicleType, location }) =>
+  request('/api/v1/riders/apply', {
+    method: 'POST',
+    body: { fullName, phone, vehicleType, location },
+  });
+
+export const applyAsPartner = ({ brand, ownerName, phone, category, location }) =>
+  request('/api/v1/partners/apply', {
+    method: 'POST',
+    body: { brand, ownerName, phone, category, location },
+  });
+
 export { ApiError };

@@ -1,5 +1,5 @@
 // Singleton Prisma client. Reuses connection pool across requests.
-const { PrismaClient } = require('../generated/prisma');
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = global.__prisma || new PrismaClient({
   log: ['warn', 'error'],

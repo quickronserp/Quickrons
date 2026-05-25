@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet, TextInput,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, space } from '../theme';
+import { applyAsRider } from '../lib/api';
 
 const VEHICLES = [
   { id: 'BIKE',    label: 'Bike',    icon: 'bicycle' },
@@ -37,16 +38,32 @@ export default function RiderOnboardingScreen({ navigation }) {
   const [vehicleType, setVehicleType] = useState('BIKE');
   const [location,    setLocation]    = useState('');
   const [submitted,   setSubmitted]   = useState(false);
+  const [submitting,  setBusy]        = useState(false);
+  const [error,       setError]       = useState(null);
 
   const canSubmit =
     fullName.trim().length >= 2 &&
     /^\d{10}$/.test(phone) &&
-    location.trim().length >= 2;
+    location.trim().length >= 2 &&
+    !submitting;
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!canSubmit) return;
-    // Local mock submit — no backend call yet.
-    setSubmitted(true);
+    setError(null);
+    setBusy(true);
+    try {
+      await applyAsRider({
+        fullName: fullName.trim(),
+        phone,
+        vehicleType,
+        location: location.trim(),
+      });
+      setSubmitted(true);
+    } catch (e) {
+      setError(e.message || 'Could not submit application');
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (submitted) {
@@ -158,12 +175,19 @@ export default function RiderOnboardingScreen({ navigation }) {
 
         {/* Sticky submit */}
         <View style={styles.footer}>
+          {error ? <Text style={styles.errorTxt}>{error}</Text> : null}
           <Pressable
             onPress={onSubmit}
             disabled={!canSubmit}
             style={[styles.submit, !canSubmit && styles.submitDisabled]}>
-            <Text style={styles.submitTxt}>Submit application</Text>
-            <Ionicons name="arrow-forward" size={16} color="#fff" />
+            {submitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.submitTxt}>Submit application</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -270,6 +294,7 @@ const styles = StyleSheet.create({
   },
   submitDisabled: { opacity: 0.45 },
   submitTxt:      { color: '#fff', fontWeight: '800', fontSize: 15 },
+  errorTxt:       { color: colors.danger, fontSize: 12, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
 
   // success
   successWrap: { flex: 1, padding: space.xl, alignItems: 'center', justifyContent: 'center' },

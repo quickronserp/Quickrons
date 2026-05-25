@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -8,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Identity ────────────────────────────────────────────────────────────
 enum UserRole {
   CUSTOMER
   RIDER
@@ -21,12 +21,109 @@ model User {
   role      UserRole @default(CUSTOMER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  orders    Order[]
 }
 
 model OTP {
-  id        String   @id @default(cuid())
+  id         String   @id @default(cuid())
+  phone      String
+  code       String
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ─── Menu (Forra Foods Kitchen) ──────────────────────────────────────────
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  pricePaise  Int               // money in paise, never floats
+  isVeg       Boolean  @default(true)
+  signature   Boolean  @default(false)
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── Orders ──────────────────────────────────────────────────────────────
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  PICKED_UP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String      @unique          // QR-XXXXX
+  customerId    String?
+  customerPhone String
+  status        OrderStatus @default(PLACED)
+  totalPaise    Int
+  itemCount     Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  customer      User?       @relation(fields: [customerId], references: [id])
+  items         OrderItem[]
+
+  @@index([customerPhone, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  menuItemId String?                     // optional — snapshot-based, no strict FK
+  name       String                      // snapshot of menu item name at order time
+  pricePaise Int                         // snapshot of unit price
+  qty        Int
+
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+// ─── Onboarding applications ─────────────────────────────────────────────
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RiderApplication {
+  id          String            @id @default(cuid())
+  fullName    String
+  phone       String
+  vehicleType String            // BIKE | SCOOTER | BICYCLE
+  location    String
+  status      ApplicationStatus @default(PENDING)
+  createdAt   DateTime          @default(now())
+
+  @@index([phone])
+  @@index([status])
+}
+
+model PartnerApplication {
+  id        String            @id @default(cuid())
+  brand     String
+  ownerName String
   phone     String
-  code      String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  category  String             // HOME_COOK | RESTAURANT | CATERING | FORRA_SUPPLIER
+  location  String
+  status    ApplicationStatus  @default(PENDING)
+  createdAt DateTime           @default(now())
+
+  @@index([phone])
+  @@index([status])
 }

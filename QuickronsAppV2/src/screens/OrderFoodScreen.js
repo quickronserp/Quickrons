@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, ScrollView, Pressable, StyleSheet,
+  View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, space } from '../theme';
+import { createOrder } from '../lib/api';
+import { useAuth } from '../state/AuthContext';
 
 // Local sample data — no backend yet.
 const PARTNER = {
@@ -56,7 +58,10 @@ const DISHES = [
 ];
 
 export default function OrderFoodScreen({ navigation }) {
-  const [cart, setCart] = useState({}); // { [dishId]: qty }
+  const { user } = useAuth();
+  const [cart, setCart]       = useState({}); // { [dishId]: qty }
+  const [submitting, setBusy] = useState(false);
+  const [error, setError]     = useState(null);
 
   const add    = id => setCart(c => ({ ...c, [id]: (c[id] || 0) + 1 }));
   const remove = id => setCart(c => {
@@ -76,15 +81,29 @@ export default function OrderFoodScreen({ navigation }) {
     return { itemCount, total };
   }, [cart]);
 
-  const onCheckout = () => {
-    if (totals.itemCount === 0) return;
-    // Local mock order id like QR-XXXXX (5 digits).
-    const orderId = `QR-${Math.floor(10000 + Math.random() * 89999)}`;
-    navigation.navigate('CheckoutSuccess', {
-      orderId,
-      total: totals.total,
-      itemCount: totals.itemCount,
-    });
+  const onCheckout = async () => {
+    if (totals.itemCount === 0 || submitting) return;
+    setError(null);
+    setBusy(true);
+    try {
+      // Build snapshot items for the backend.
+      const items = Object.entries(cart).map(([id, qty]) => {
+        const d = DISHES.find(x => x.id === id);
+        return { name: d.name, pricePaise: d.price * 100, qty };
+      });
+      const customerPhone = user?.phone || '9876543210';
+      const { order } = await createOrder({ customerPhone, items });
+      navigation.navigate('CheckoutSuccess', {
+        orderId:   order.orderNumber,
+        orderRowId: order.id,
+        total:     Math.round(order.totalPaise / 100),
+        itemCount: order.itemCount,
+      });
+    } catch (e) {
+      setError(e.message || 'Could not place order');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -164,19 +183,29 @@ export default function OrderFoodScreen({ navigation }) {
       {/* Sticky cart bar */}
       <View style={styles.cartBar}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.cartCount}>
-            {totals.itemCount === 0
-              ? 'Cart is empty'
-              : `${totals.itemCount} item${totals.itemCount > 1 ? 's' : ''} in cart`}
-          </Text>
+          {error ? (
+            <Text style={styles.cartError}>{error}</Text>
+          ) : (
+            <Text style={styles.cartCount}>
+              {totals.itemCount === 0
+                ? 'Cart is empty'
+                : `${totals.itemCount} item${totals.itemCount > 1 ? 's' : ''} in cart`}
+            </Text>
+          )}
           <Text style={styles.cartTotal}>₹{totals.total}</Text>
         </View>
         <Pressable
           onPress={onCheckout}
-          disabled={totals.itemCount === 0}
-          style={[styles.checkoutBtn, totals.itemCount === 0 && styles.checkoutDisabled]}>
-          <Text style={styles.checkoutTxt}>Checkout</Text>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
+          disabled={totals.itemCount === 0 || submitting}
+          style={[styles.checkoutBtn, (totals.itemCount === 0 || submitting) && styles.checkoutDisabled]}>
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.checkoutTxt}>Checkout</Text>
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
@@ -273,6 +302,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border,
   },
   cartCount: { fontSize: 11, color: colors.inkSoft, fontWeight: '700', letterSpacing: 0.4 },
+  cartError: { fontSize: 11, color: colors.danger, fontWeight: '700' },
   cartTotal: { fontSize: 20, fontWeight: '800', color: colors.ink, marginTop: 2 },
   checkoutBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
