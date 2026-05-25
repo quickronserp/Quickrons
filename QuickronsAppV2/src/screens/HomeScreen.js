@@ -8,6 +8,7 @@ import { useAuth } from '../state/AuthContext';
 const ROLE_CARDS = [
   {
     id: 'customer',
+    route: 'OrderFood',
     title: 'Order food',
     desc: 'Browse Malabar kitchens, home-cooks, restaurants and caterers.',
     icon: 'restaurant',
@@ -16,6 +17,7 @@ const ROLE_CARDS = [
   },
   {
     id: 'rider',
+    route: 'RiderOnboarding',
     title: 'Become a rider',
     desc: 'Earn weekly. Branded fleet across Perinthalmanna & Malappuram.',
     icon: 'bicycle',
@@ -24,6 +26,7 @@ const ROLE_CARDS = [
   },
   {
     id: 'partner',
+    route: 'PartnerOnboarding',
     title: 'Sell on Quickrons',
     desc: 'Home cooks, restaurants, caterers — list your kitchen.',
     icon: 'storefront',
@@ -32,7 +35,7 @@ const ROLE_CARDS = [
   },
 ];
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const phoneTail = user?.phone ? user.phone.slice(-4) : '';
 
@@ -66,7 +69,10 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>What would you like to do?</Text>
 
         {ROLE_CARDS.map(r => (
-          <Pressable key={r.id} style={styles.card}>
+          <Pressable
+            key={r.id}
+            onPress={r.route ? () => navigation.navigate(r.route) : undefined}
+            style={({ pressed }) => [styles.card, pressed && r.route && { opacity: 0.85 }]}>
             <View style={[styles.cardIcon, { backgroundColor: r.color + '18' }]}>
               <Ionicons name={r.icon} size={26} color={r.color} />
             </View>

@@ -8,7 +8,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/state/AuthContext';
 import LoginScreen from './src/screens/LoginScreen';
 import OtpScreen   from './src/screens/OtpScreen';
-import HomeScreen  from './src/screens/HomeScreen';
+import HomeScreen              from './src/screens/HomeScreen';
+import OrderFoodScreen         from './src/screens/OrderFoodScreen';
+import CheckoutSuccessScreen   from './src/screens/CheckoutSuccessScreen';
+import TrackingScreen          from './src/screens/TrackingScreen';
+import RiderOnboardingScreen   from './src/screens/RiderOnboardingScreen';
+import PartnerOnboardingScreen from './src/screens/PartnerOnboardingScreen';
 import { colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -33,7 +38,12 @@ function AuthStack() {
 function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="Home"               component={HomeScreen} />
+      <Stack.Screen name="OrderFood"          component={OrderFoodScreen} />
+      <Stack.Screen name="CheckoutSuccess"    component={CheckoutSuccessScreen} />
+      <Stack.Screen name="Tracking"           component={TrackingScreen} />
+      <Stack.Screen name="RiderOnboarding"    component={RiderOnboardingScreen} />
+      <Stack.Screen name="PartnerOnboarding"  component={PartnerOnboardingScreen} />
     </Stack.Navigator>
   );
 }
