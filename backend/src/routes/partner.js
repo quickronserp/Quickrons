@@ -346,4 +346,59 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
   res.json({ order: updated });
 }));
 
+// ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────
+//
+// Returns { wallet: null } if no deliveries have been settled yet.
+//
+// BigInt fields are serialized to strings — JSON.stringify cannot handle BigInt
+// natively and will throw "Do not know how to serialize a BigInt".
+
+function serializeWallet(wallet) {
+  if (!wallet) return null;
+  return {
+    ...wallet,
+    balancePaise:        String(wallet.balancePaise),
+    holdPaise:           String(wallet.holdPaise),
+    lifetimeCreditPaise: String(wallet.lifetimeCreditPaise),
+    lifetimeDebitPaise:  String(wallet.lifetimeDebitPaise),
+    transactions: (wallet.transactions || []).map(t => ({
+      ...t,
+      amountPaise:       String(t.amountPaise),
+      balanceAfterPaise: String(t.balanceAfterPaise),
+    })),
+  };
+}
+
+router.get('/wallet', asyncH(async (req, res) => {
+  const wallet = await prisma.wallet.findUnique({
+    where: { partnerId: req.partner.id },
+    select: {
+      id:                  true,
+      ownerType:           true,
+      balancePaise:        true,
+      holdPaise:           true,
+      lifetimeCreditPaise: true,
+      lifetimeDebitPaise:  true,
+      currency:            true,
+      updatedAt:           true,
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        take:    20,
+        select: {
+          id:                true,
+          direction:         true,
+          kind:              true,
+          amountPaise:       true,
+          balanceAfterPaise: true,
+          orderId:           true,
+          note:              true,
+          createdAt:         true,
+        },
+      },
+    },
+  });
+
+  res.json({ wallet: serializeWallet(wallet) });
+}));
+
 module.exports = router;

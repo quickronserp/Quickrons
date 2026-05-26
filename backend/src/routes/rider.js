@@ -270,45 +270,229 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
 // Sets deliveredAt to now.
 // For COD orders: paymentStatus → CAPTURED (cash collected at door).
 // For non-COD: paymentStatus unchanged (handled by payment gateway callback).
+//
+// Wallet settlement (atomic, idempotent):
+//   • Partner receives: totalPaise - commission (commission = totalPaise × commissionBps / 10000)
+//   • Rider receives:   3000 paise fixed (MVP flat rate)
+//   • Idempotency keys prevent double-credit on retry
+//   • Wallets are upserted (get-or-create) so first delivery auto-creates wallet
+
+const RIDER_FLAT_PAISE = 3000n; // flat delivery fee until earnings model is finalised
 
 router.post('/orders/:id/delivered', asyncH(async (req, res) => {
+  // Load the order plus partner commission rate — needed for settlement math.
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
-    select: { id: true, status: true, paymentMethod: true },
+    select: {
+      id:            true,
+      status:        true,
+      paymentMethod: true,
+      totalPaise:    true,
+      partnerId:     true,
+      partner: { select: { commissionBps: true } },
+    },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['PICKED_UP'], 'DELIVERED');
 
   const now = new Date();
 
-  // COD: mark payment as captured (cash received). Other methods are handled
-  // by payment gateway webhooks — do not touch paymentStatus here.
+  // ── Settlement math ────────────────────────────────────────────────────────
+  const totalPaise      = BigInt(order.totalPaise);
+  const commissionBps   = BigInt(order.partner.commissionBps);
+  const commissionPaise = totalPaise * commissionBps / 10000n;
+  const partnerPayout   = totalPaise - commissionPaise;
+  const riderPayout     = RIDER_FLAT_PAISE;
+
+  // Idempotency keys — unique per order so retries are no-ops.
+  const partnerIdemKey = `settlement:partner:${order.id}`;
+  const riderIdemKey   = `settlement:rider:${order.id}`;
+
+  // COD: mark payment as captured (cash received at door).
   const paymentUpdate = order.paymentMethod === 'COD'
     ? { paymentStatus: 'CAPTURED' }
     : {};
 
-  await prisma.$transaction([
-    prisma.order.update({
-      where:  { id: order.id },
-      data:   { status: 'DELIVERED', deliveredAt: now, ...paymentUpdate },
-      select: { id: true },
-    }),
-    prisma.orderEvent.create({
-      data: {
-        orderId:     order.id,
-        fromStatus:  'PICKED_UP',
-        toStatus:    'DELIVERED',
-        actorUserId: req.user.id,
-        actorRole:   'RIDER',
-        note:        order.paymentMethod === 'COD'
-          ? 'Delivered — COD collected'
-          : 'Delivered',
+  // ── Upsert wallets outside the transaction (get-or-create) ────────────────
+  // Using upsert here is safe: if wallets already exist the update: {} is a no-op.
+  // We do this outside the transaction to keep the tx short (no SELECT + INSERT
+  // branching logic inside an open tx).
+  const [partnerWallet, riderWallet] = await Promise.all([
+    prisma.wallet.upsert({
+      where:  { partnerId: order.partnerId },
+      create: {
+        ownerType:           'PARTNER',
+        partnerId:           order.partnerId,
+        balancePaise:        0n,
+        holdPaise:           0n,
+        lifetimeCreditPaise: 0n,
+        lifetimeDebitPaise:  0n,
       },
+      update: {},
+      select: { id: true, balancePaise: true },
     }),
-  ], { timeout: 15000 });
+    prisma.wallet.upsert({
+      where:  { riderId: req.rider.id },
+      create: {
+        ownerType:           'RIDER',
+        riderId:             req.rider.id,
+        balancePaise:        0n,
+        holdPaise:           0n,
+        lifetimeCreditPaise: 0n,
+        lifetimeDebitPaise:  0n,
+      },
+      update: {},
+      select: { id: true, balancePaise: true },
+    }),
+  ]);
+
+  // Compute balance-after for the ledger snapshots.
+  const partnerBalanceAfter = partnerWallet.balancePaise + partnerPayout;
+  const riderBalanceAfter   = riderWallet.balancePaise   + riderPayout;
+
+  // ── Atomic 6-op transaction ────────────────────────────────────────────────
+  // Op 1: mark order delivered
+  // Op 2: order event
+  // Op 3: partner WalletTransaction ledger entry
+  // Op 4: partner Wallet balance increment
+  // Op 5: rider  WalletTransaction ledger entry
+  // Op 6: rider  Wallet balance increment
+  //
+  // If idempotencyKey P2002 fires (duplicate key), we catch it and return the
+  // already-settled order — the delivery happened, just the wallet write was
+  // already done on a prior call.
+  try {
+    await prisma.$transaction([
+      // 1. Order status
+      prisma.order.update({
+        where:  { id: order.id },
+        data:   { status: 'DELIVERED', deliveredAt: now, ...paymentUpdate },
+        select: { id: true },
+      }),
+      // 2. Order event
+      prisma.orderEvent.create({
+        data: {
+          orderId:     order.id,
+          fromStatus:  'PICKED_UP',
+          toStatus:    'DELIVERED',
+          actorUserId: req.user.id,
+          actorRole:   'RIDER',
+          note:        order.paymentMethod === 'COD'
+            ? 'Delivered — COD collected'
+            : 'Delivered',
+        },
+      }),
+      // 3. Partner ledger entry
+      prisma.walletTransaction.create({
+        data: {
+          walletId:         partnerWallet.id,
+          direction:        'CREDIT',
+          kind:             'ORDER_PAYOUT',
+          amountPaise:      partnerPayout,
+          balanceAfterPaise: partnerBalanceAfter,
+          idempotencyKey:   partnerIdemKey,
+          orderId:          order.id,
+          note:             `Order payout (commission ${order.partner.commissionBps}bps deducted)`,
+        },
+        select: { id: true },
+      }),
+      // 4. Partner wallet balance
+      prisma.wallet.update({
+        where: { id: partnerWallet.id },
+        data:  {
+          balancePaise:        { increment: partnerPayout },
+          lifetimeCreditPaise: { increment: partnerPayout },
+        },
+        select: { id: true },
+      }),
+      // 5. Rider ledger entry
+      prisma.walletTransaction.create({
+        data: {
+          walletId:         riderWallet.id,
+          direction:        'CREDIT',
+          kind:             'ORDER_PAYOUT',
+          amountPaise:      riderPayout,
+          balanceAfterPaise: riderBalanceAfter,
+          idempotencyKey:   riderIdemKey,
+          orderId:          order.id,
+          note:             'Delivery fee',
+        },
+        select: { id: true },
+      }),
+      // 6. Rider wallet balance
+      prisma.wallet.update({
+        where: { id: riderWallet.id },
+        data:  {
+          balancePaise:        { increment: riderPayout },
+          lifetimeCreditPaise: { increment: riderPayout },
+        },
+        select: { id: true },
+      }),
+    ], { timeout: 15000 });
+  } catch (err) {
+    // P2002 = unique constraint violation on idempotencyKey.
+    // Settlement already ran on a previous call — safe to continue and return
+    // the current order state (delivery succeeded, no double-credit).
+    if (err.code !== 'P2002') throw err;
+  }
 
   const updated = await fetchFullOrder(order.id);
   res.json({ order: updated });
+}));
+
+// ─── GET /wallet — rider's own wallet + last 20 transactions ─────────────────
+//
+// Returns { wallet: null } if the rider has never had a delivery settled yet.
+//
+// BigInt fields are serialized to strings — JSON.stringify cannot handle BigInt
+// natively and will throw "Do not know how to serialize a BigInt".
+
+function serializeWallet(wallet) {
+  if (!wallet) return null;
+  return {
+    ...wallet,
+    balancePaise:        String(wallet.balancePaise),
+    holdPaise:           String(wallet.holdPaise),
+    lifetimeCreditPaise: String(wallet.lifetimeCreditPaise),
+    lifetimeDebitPaise:  String(wallet.lifetimeDebitPaise),
+    transactions: (wallet.transactions || []).map(t => ({
+      ...t,
+      amountPaise:       String(t.amountPaise),
+      balanceAfterPaise: String(t.balanceAfterPaise),
+    })),
+  };
+}
+
+router.get('/wallet', asyncH(async (req, res) => {
+  const wallet = await prisma.wallet.findUnique({
+    where: { riderId: req.rider.id },
+    select: {
+      id:                  true,
+      ownerType:           true,
+      balancePaise:        true,
+      holdPaise:           true,
+      lifetimeCreditPaise: true,
+      lifetimeDebitPaise:  true,
+      currency:            true,
+      updatedAt:           true,
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        take:    20,
+        select: {
+          id:                true,
+          direction:         true,
+          kind:              true,
+          amountPaise:       true,
+          balanceAfterPaise: true,
+          orderId:           true,
+          note:              true,
+          createdAt:         true,
+        },
+      },
+    },
+  });
+
+  res.json({ wallet: serializeWallet(wallet) });
 }));
 
 // ─── GET /me/orders — rider's assigned order history ─────────────────────────
