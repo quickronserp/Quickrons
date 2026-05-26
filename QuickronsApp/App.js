@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { CartProvider, useCart } from './src/state/CartContext';
 import { AuthProvider, useAuth } from './src/state/AuthContext';
@@ -16,6 +17,7 @@ import PartnerScreen           from './src/screens/PartnerScreen';
 import CartScreen              from './src/screens/CartScreen';
 import CheckoutScreen          from './src/screens/CheckoutScreen';
 import TrackingScreen          from './src/screens/TrackingScreen';
+import MyOrdersScreen          from './src/screens/MyOrdersScreen';
 import PremiumScreen           from './src/screens/PremiumScreen';
 import PartnerOnboardingScreen from './src/screens/PartnerOnboardingScreen';
 import RiderScreen             from './src/screens/RiderScreen';
@@ -24,6 +26,16 @@ import LoginScreen             from './src/screens/LoginScreen';
 import OtpVerifyScreen         from './src/screens/OtpVerifyScreen';
 
 import { colors } from './src/theme';
+
+// Single QueryClient instance — lives for the app's lifetime.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -40,7 +52,7 @@ function HomeStack() {
 
 // ─── Bottom tabs (post-auth) ─────────────────────────────────────────────
 function MainTabs() {
-  const { items, role } = useCart();
+  const { items } = useCart();
   const cartCount = items.reduce((s, i) => s + i.qty, 0);
 
   return (
@@ -55,14 +67,13 @@ function MainTabs() {
           const map = {
             HomeTab:    'restaurant',
             CartTab:    'bag',
-            RiderTab:   'bicycle',
             ProfileTab: 'person',
           };
           return <Ionicons name={map[route.name]} size={size} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="HomeTab" component={HomeStack} options={{ title: 'Home' }} />
+      <Tab.Screen name="HomeTab"    component={HomeStack}    options={{ title: 'Home' }} />
       <Tab.Screen
         name="CartTab"
         component={CartScreen}
@@ -72,9 +83,6 @@ function MainTabs() {
           tabBarBadgeStyle: { backgroundColor: colors.brand },
         }}
       />
-      {role === 'rider' && (
-        <Tab.Screen name="RiderTab" component={RiderScreen} options={{ title: 'Deliveries' }} />
-      )}
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Account' }} />
     </Tab.Navigator>
   );
@@ -107,9 +115,11 @@ function MainStack() {
       <Stack.Screen name="Cart"              component={CartScreen}              options={{ presentation: 'modal' }} />
       <Stack.Screen name="Checkout"          component={CheckoutScreen}          options={{ presentation: 'modal' }} />
       <Stack.Screen name="Tracking"          component={TrackingScreen} />
+      <Stack.Screen name="MyOrders"          component={MyOrdersScreen} />
       <Stack.Screen name="Premium"           component={PremiumScreen}           options={{ presentation: 'modal' }} />
       <Stack.Screen name="PartnerOnboarding" component={PartnerOnboardingScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Profile"           component={ProfileScreen} />
+      <Stack.Screen name="Rider"             component={RiderScreen} />
     </Stack.Navigator>
   );
 }
@@ -118,8 +128,7 @@ function MainStack() {
 function RootNavigator() {
   const { isAuthenticated, bootstrapping, accessToken, user, signOut } = useAuth();
 
-  // Dev escape hatch — open  http://localhost:8082/?signout=1  to force-clear a
-  // stale session. Useful when localStorage has a token from a previous run.
+  // Dev escape hatch — open  http://localhost:8082/?signout=1  to force-clear a stale session.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     try {
@@ -152,20 +161,22 @@ function RootNavigator() {
 }
 
 // ─── App entry — provider order matters ──────────────────────────────────
-// SafeAreaProvider → I18nProvider → AuthProvider → CartProvider → NavigationContainer → RootNavigator
+// QueryClientProvider → SafeAreaProvider → I18nProvider → AuthProvider → CartProvider → NavigationContainer
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <I18nProvider defaultLang="ml">
-        <AuthProvider>
-          <CartProvider>
-            <NavigationContainer>
-              <StatusBar style="dark" />
-              <RootNavigator />
-            </NavigationContainer>
-          </CartProvider>
-        </AuthProvider>
-      </I18nProvider>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <I18nProvider defaultLang="ml">
+          <AuthProvider>
+            <CartProvider>
+              <NavigationContainer>
+                <StatusBar style="dark" />
+                <RootNavigator />
+              </NavigationContainer>
+            </CartProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }

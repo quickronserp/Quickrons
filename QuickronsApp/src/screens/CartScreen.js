@@ -32,19 +32,19 @@ export default function CartScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}>
-        {items.map(({ dish, partner, qty }) => (
-          <View key={dish.id} style={styles.row}>
+        {items.map(({ menuItem, partner, qty }) => (
+          <View key={menuItem.id} style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.partnerLabel}>{partner.name}</Text>
-              <Text style={styles.dish}>{dish.name}</Text>
-              <Text style={styles.price}>₹{dish.price}</Text>
+              <Text style={styles.dish}>{menuItem.name}</Text>
+              <Text style={styles.price}>₹{Math.round(menuItem.pricePaise / 100)}</Text>
             </View>
             <View style={styles.qtyBox}>
-              <Pressable onPress={() => updateQty(dish.id, qty - 1)} style={styles.qtyBtn}>
+              <Pressable onPress={() => updateQty(menuItem.id, qty - 1)} style={styles.qtyBtn}>
                 <Ionicons name="remove" size={16} color={colors.brand} />
               </Pressable>
               <Text style={styles.qtyTxt}>{qty}</Text>
-              <Pressable onPress={() => updateQty(dish.id, qty + 1)} style={styles.qtyBtn}>
+              <Pressable onPress={() => updateQty(menuItem.id, qty + 1)} style={styles.qtyBtn}>
                 <Ionicons name="add" size={16} color={colors.brand} />
               </Pressable>
             </View>

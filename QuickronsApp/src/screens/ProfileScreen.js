@@ -3,16 +3,15 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
+import { useAuth } from '../state/AuthContext';
 import { colors, radii, space } from '../theme';
 
 export default function ProfileScreen({ navigation }) {
-  const { role, setRole, isPlus } = useCart();
+  const { isPlus } = useCart();
+  const { user, signOut } = useAuth();
 
-  const ROLES = [
-    { id: 'customer', label: 'Customer', icon: 'restaurant', desc: 'Order food' },
-    { id: 'rider', label: 'Rider', icon: 'bicycle', desc: 'Earn deliveries' },
-    { id: 'partner', label: 'Partner', icon: 'storefront', desc: 'Sell on Quickrons' },
-  ];
+  const displayName = user?.name  || user?.fullName || '';
+  const phone       = user?.phone || '';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
@@ -21,8 +20,8 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.avatar}>
             <Ionicons name="person" size={32} color="#fff" />
           </View>
-          <Text style={styles.name}>Shakeeb Ali</Text>
-          <Text style={styles.email}>shakeeb.ap@gmail.com</Text>
+          {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
+          <Text style={styles.email}>{phone}</Text>
           {isPlus && (
             <View style={styles.plusPill}>
               <Ionicons name="diamond" size={12} color={colors.accent} />
@@ -31,25 +30,13 @@ export default function ProfileScreen({ navigation }) {
           )}
         </View>
 
-        <Text style={styles.section}>Switch role</Text>
-        <View style={styles.roleGrid}>
-          {ROLES.map(r => (
-            <Pressable
-              key={r.id}
-              onPress={() => setRole(r.id)}
-              style={[styles.roleCard, role === r.id && styles.roleCardActive]}>
-              <Ionicons
-                name={r.icon}
-                size={24}
-                color={role === r.id ? '#fff' : colors.brand}
-              />
-              <Text style={[styles.roleLabel, role === r.id && { color: '#fff' }]}>{r.label}</Text>
-              <Text style={[styles.roleDesc, role === r.id && { color: '#FECDD3' }]}>{r.desc}</Text>
-            </Pressable>
-          ))}
-        </View>
-
         <Text style={styles.section}>Quick actions</Text>
+        <Action
+          icon="receipt"
+          color={colors.inkSoft}
+          title="My orders"
+          onPress={() => navigation.navigate('MyOrders')}
+        />
         <Action
           icon="diamond"
           color={colors.accent}
@@ -63,10 +50,9 @@ export default function ProfileScreen({ navigation }) {
           desc="Home maker, hotel, or caterer"
           onPress={() => navigation.navigate('PartnerOnboarding')}
         />
-        <Action icon="receipt" color={colors.inkSoft} title="Past orders" />
         <Action icon="heart" color={colors.brand} title="Saved kitchens" />
         <Action icon="help-circle" color={colors.inkSoft} title="Help & support" />
-        <Action icon="log-out" color={colors.danger} title="Sign out" />
+        <Action icon="log-out" color={colors.danger} title="Sign out" onPress={signOut} />
       </ScrollView>
     </SafeAreaView>
   );

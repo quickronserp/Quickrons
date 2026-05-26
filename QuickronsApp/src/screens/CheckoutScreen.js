@@ -1,23 +1,77 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { useCart } from '../state/CartContext';
+import { useAuth } from '../state/AuthContext';
+import { addressesApi, ordersApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
 
 const PAY_METHODS = [
-  { id: 'upi', label: 'UPI', icon: 'phone-portrait', desc: 'PhonePe / GPay / Paytm' },
-  { id: 'card', label: 'Card', icon: 'card', desc: 'Credit / Debit' },
-  { id: 'cod', label: 'Cash on delivery', icon: 'cash', desc: 'Pay rider on arrival' },
+  { id: 'COD',  label: 'Cash on delivery', icon: 'cash',          desc: 'Pay rider on arrival' },
 ];
+// UPI / Card can be added when a payment gateway is wired up.
 
 export default function CheckoutScreen({ navigation }) {
-  const [pay, setPay] = useState('upi');
-  const { total, clear } = useCart();
+  const [pay,      setPay]      = useState('COD');
+  const [placing,  setPlacing]  = useState(false);
+  const [selectedAddr, setSelectedAddr] = useState(null);
 
-  const placeOrder = () => {
-    clear();
-    navigation.replace('Tracking');
+  const { items, total, clear } = useCart();
+  const { accessToken }         = useAuth();
+
+  // ── Addresses ────────────────────────────────────────────────────────────────
+
+  const { data: addrData, isLoading: addrLoading } = useQuery({
+    queryKey: ['addresses'],
+    queryFn:  () => addressesApi.list(accessToken),
+    enabled:  !!accessToken,
+    select:   (res) => res.addresses || res || [],
+    onSuccess: (list) => {
+      // Auto-select default or first address
+      if (!selectedAddr && list.length > 0) {
+        const def = list.find(a => a.isDefault) || list[0];
+        setSelectedAddr(def.id);
+      }
+    },
+  });
+
+  const addresses = addrData || [];
+  const activeAddress = addresses.find(a => a.id === selectedAddr) || addresses[0];
+
+  // ── Place order ───────────────────────────────────────────────────────────────
+
+  const placeOrder = async () => {
+    if (!activeAddress) {
+      Alert.alert('Add an address', 'Please add a delivery address before placing your order.');
+      return;
+    }
+    if (items.length === 0) {
+      Alert.alert('Cart is empty', 'Add items before checking out.');
+      return;
+    }
+
+    setPlacing(true);
+    try {
+      const body = {
+        addressId:     activeAddress.id,
+        paymentMethod: pay,
+        items: items.map(i => ({ menuItemId: i.menuItem.id, qty: i.qty })),
+      };
+
+      const res = await ordersApi.place(body, accessToken);
+      const orderId = res?.order?.id || res?.id;
+
+      clear();
+      navigation.replace('Tracking', { orderId });
+    } catch (err) {
+      Alert.alert('Order failed', err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setPlacing(false);
+    }
   };
 
   return (
@@ -31,16 +85,52 @@ export default function CheckoutScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 120 }}>
+        {/* Delivery address */}
         <Text style={styles.section}>Deliver to</Text>
-        <View style={styles.card}>
-          <Ionicons name="home" size={18} color={colors.brand} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Home</Text>
-            <Text style={styles.cardDesc}>312, 4th cross, Indiranagar, Bengaluru — 560038</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
-        </View>
 
+        {addrLoading ? (
+          <View style={[styles.card, { justifyContent: 'center' }]}>
+            <ActivityIndicator color={colors.brand} />
+          </View>
+        ) : addresses.length === 0 ? (
+          <View style={styles.card}>
+            <Ionicons name="location-outline" size={18} color={colors.inkMuted} />
+            <Text style={[styles.cardDesc, { flex: 1 }]}>
+              No saved addresses. Add one in your profile.
+            </Text>
+          </View>
+        ) : (
+          addresses.map(addr => (
+            <Pressable
+              key={addr.id}
+              onPress={() => setSelectedAddr(addr.id)}
+              style={[
+                styles.addrRow,
+                selectedAddr === addr.id && styles.addrRowActive,
+              ]}>
+              <Ionicons
+                name={addr.label?.toLowerCase() === 'home' ? 'home' : 'business'}
+                size={18}
+                color={selectedAddr === addr.id ? colors.brand : colors.inkSoft}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {addr.label || 'Address'}
+                  {addr.isDefault ? '  ✓ Default' : ''}
+                </Text>
+                <Text style={styles.cardDesc} numberOfLines={2}>
+                  {[addr.line1, addr.line2, addr.city, addr.pincode]
+                    .filter(Boolean).join(', ')}
+                </Text>
+              </View>
+              <View style={[styles.radio, selectedAddr === addr.id && styles.radioActive]}>
+                {selectedAddr === addr.id && <View style={styles.radioDot} />}
+              </View>
+            </Pressable>
+          ))
+        )}
+
+        {/* Payment */}
         <Text style={styles.section}>Payment</Text>
         {PAY_METHODS.map(m => (
           <Pressable
@@ -62,12 +152,25 @@ export default function CheckoutScreen({ navigation }) {
           </Pressable>
         ))}
 
-        <Text style={styles.section}>Delivery instructions</Text>
+        {/* Order summary */}
+        <Text style={styles.section}>Your order</Text>
         <View style={styles.card}>
-          <Ionicons name="document-text-outline" size={18} color={colors.inkSoft} />
-          <Text style={styles.cardDesc}>Avoid contact delivery. Leave at door.</Text>
+          {items.map(({ menuItem, qty }) => (
+            <View key={menuItem.id} style={styles.orderRow}>
+              <Text style={styles.orderItem}>{menuItem.name}</Text>
+              <Text style={styles.orderQty}>×{qty}</Text>
+              <Text style={styles.orderPrice}>
+                ₹{Math.round(menuItem.pricePaise * qty / 100)}
+              </Text>
+            </View>
+          ))}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total (incl. fees)</Text>
+            <Text style={styles.totalValue}>₹{total}</Text>
+          </View>
         </View>
 
+        {/* Trust badge */}
         <View style={styles.trustBox}>
           <Ionicons name="shield-checkmark" size={20} color={colors.success} />
           <Text style={styles.trustTxt}>
@@ -76,9 +179,18 @@ export default function CheckoutScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <Pressable onPress={placeOrder} style={styles.cta}>
-        <Text style={styles.ctaTxt}>Place order — ₹{total}</Text>
-        <Ionicons name="arrow-forward" size={18} color="#fff" />
+      <Pressable
+        onPress={placeOrder}
+        disabled={placing}
+        style={[styles.cta, placing && { opacity: 0.7 }]}>
+        {placing ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <>
+            <Text style={styles.ctaTxt}>Place order — ₹{total}</Text>
+            <Ionicons name="arrow-forward" size={18} color="#fff" />
+          </>
+        )}
       </Pressable>
     </SafeAreaView>
   );
@@ -91,12 +203,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   title: { fontSize: 17, fontWeight: '800', color: colors.ink },
-  section: { fontSize: 13, fontWeight: '700', color: colors.inkSoft, marginTop: 16, marginBottom: 8, textTransform: 'uppercase' },
+  section: {
+    fontSize: 13, fontWeight: '700', color: colors.inkSoft,
+    marginTop: 16, marginBottom: 8, textTransform: 'uppercase',
+  },
   card: {
+    backgroundColor: colors.bg, padding: space.md, borderRadius: radii.md,
+    borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  addrRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.bg, padding: space.md, borderRadius: radii.md,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.border, marginBottom: 8,
   },
+  addrRowActive: { borderColor: colors.brand, backgroundColor: '#FFF1F4' },
   cardTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
   cardDesc: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
   payRow: {
@@ -112,6 +232,18 @@ const styles = StyleSheet.create({
   },
   radioActive: { borderColor: colors.brand },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brand },
+  orderRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 4,
+  },
+  orderItem:  { flex: 1, fontSize: 13, color: colors.ink },
+  orderQty:   { fontSize: 13, color: colors.inkSoft, marginRight: 8 },
+  orderPrice: { fontSize: 13, fontWeight: '700', color: colors.ink },
+  totalRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border,
+  },
+  totalLabel: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  totalValue: { fontSize: 14, fontWeight: '800', color: colors.brand },
   trustBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: colors.success + '12', padding: space.md, borderRadius: radii.md, marginTop: 16,

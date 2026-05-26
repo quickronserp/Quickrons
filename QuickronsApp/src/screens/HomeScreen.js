@@ -1,32 +1,72 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import PartnerCard from '../components/PartnerCard';
-import { PARTNERS, ZONE } from '../data/mockData';
+import { ZONE } from '../data/mockData';
+import { kitchensApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
 import { useCart } from '../state/CartContext';
+import { useAuth } from '../state/AuthContext';
 import { useI18n } from '../i18n';
+
+// Backend businessType → frontend filter segment
+const TYPE_TO_SEGMENT = {
+  FORRA_KITCHEN: 'forra',
+  HOME_MAKER:    'homeMaker',
+  HOTEL:         'hotel',
+  CATERER:       'caterer',
+};
 
 const FILTER_IDS = ['all', 'forra', 'homeMaker', 'hotel', 'caterer'];
 
+// Normalise a backend kitchen into the shape PartnerCard + HomeScreen expect.
+function normaliseKitchen(k) {
+  return {
+    id:       k.id,
+    name:     k.businessName,
+    nameMl:   k.businessNameMl || k.businessName,
+    segment:  TYPE_TO_SEGMENT[k.businessType] || 'hotel',
+    tagline:  k.tagline        || k.cuisineType || '',
+    taglineMl:k.taglineMl      || k.cuisineType || '',
+    rating:   k.averageRating  || 0,
+    reviews:  k.reviewCount    || 0,
+    etaMins:  k.avgDeliveryMinutes || 30,
+    badges:   k.badges         || [],
+    location: k.city           || k.addressLine || '',
+    image:    k.bannerImageUrl || k.profileImageUrl || null,
+  };
+}
+
 export default function HomeScreen({ navigation }) {
   const { t, lang, setLang } = useI18n();
-  const [tab, setTab] = useState('now');     // 'now' (Ippol) | 'preorder'
+  const [tab,    setTab]    = useState('now');     // 'now' | 'preorder'
   const [filter, setFilter] = useState('all');
   const { items } = useCart();
+  const { accessToken, user } = useAuth();
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['kitchens'],
+    queryFn:  () => kitchensApi.list(accessToken),
+    enabled:  !!accessToken,
+    select:   (res) => (res.kitchens || res.data || res || []).map(normaliseKitchen),
+    staleTime: 60_000,
+  });
+
+  const kitchens = data || [];
 
   const filtered = useMemo(() => {
-    let list = PARTNERS;
+    let list = kitchens;
     if (filter !== 'all') list = list.filter(p => p.segment === filter);
-    if (tab === 'now') list = list.filter(p => p.etaMins <= 45);
     return list;
-  }, [tab, filter]);
+  }, [kitchens, filter]);
 
   const cartCount = items.reduce((s, i) => s + i.qty, 0);
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? t('home.greeting_morning') : t('home.greeting_evening');
+  const hour      = new Date().getHours();
+  const greeting  = hour < 12 ? t('home.greeting_morning') : t('home.greeting_evening');
   const filterLabel = id => t(`home.filters.${id === 'homeMaker' ? 'home' : id}`);
+  const displayName = user?.name || user?.phone || 'there';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -34,7 +74,7 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.greet} numberOfLines={1}>
-            {greeting}, Shakeeb
+            {greeting}, {displayName}
           </Text>
           <View style={styles.locRow}>
             <Ionicons name="location" size={14} color={colors.brand} />
@@ -59,23 +99,8 @@ export default function HomeScreen({ navigation }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Forra spotlight */}
-        <Pressable
-          onPress={() => navigation.navigate('Partner', { partnerId: 'forra-flagship' })}
-          style={styles.forraCard}>
-          <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1633237308525-cd587cf71926?w=900' }}
-            style={styles.forraImg}
-          />
-          <View style={styles.forraOverlay}>
-            <Text style={styles.forraTag}>{t('home.forra_spotlight_tag')}</Text>
-            <Text style={styles.forraTitle}>{t('home.forra_spotlight_title')}</Text>
-            <Text style={styles.forraSub}>{t('home.forra_spotlight_sub')}</Text>
-          </View>
-        </Pressable>
-
         {/* Tabs — Ippol vs Pre-order */}
-        <View style={styles.tabs}>
+        <View style={[styles.tabs, { marginTop: space.md }]}>
           <Pressable
             onPress={() => setTab('now')}
             style={[styles.tabBtn, tab === 'now' && styles.tabActive]}>
@@ -115,23 +140,48 @@ export default function HomeScreen({ navigation }) {
           ))}
         </ScrollView>
 
-        {/* Partner list */}
+        {/* Kitchen list */}
         <View style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
-          <Text style={styles.sectionTitle}>
-            {t('home.section_kitchens', { count: filtered.length })}
-          </Text>
-          <FlatList
-            data={filtered}
-            keyExtractor={i => i.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <PartnerCard
-                partner={{ ...item, name: lang === 'ml' && item.nameMl ? item.nameMl : item.name,
-                                    tagline: lang === 'ml' && item.taglineMl ? item.taglineMl : item.tagline }}
-                onPress={() => navigation.navigate('Partner', { partnerId: item.id })}
+          {isLoading ? (
+            <View style={styles.center}>
+              <ActivityIndicator color={colors.brand} />
+              <Text style={styles.statusTxt}>Loading kitchens…</Text>
+            </View>
+          ) : isError ? (
+            <View style={styles.center}>
+              <Ionicons name="cloud-offline-outline" size={36} color={colors.inkMuted} />
+              <Text style={styles.statusTxt}>Couldn't load kitchens</Text>
+              <Pressable onPress={refetch} style={styles.retryBtn}>
+                <Text style={styles.retryTxt}>Retry</Text>
+              </Pressable>
+            </View>
+          ) : filtered.length === 0 ? (
+            <View style={styles.center}>
+              <Ionicons name="restaurant-outline" size={36} color={colors.inkMuted} />
+              <Text style={styles.statusTxt}>No kitchens available right now</Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>
+                {t('home.section_kitchens', { count: filtered.length })}
+              </Text>
+              <FlatList
+                data={filtered}
+                keyExtractor={i => i.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <PartnerCard
+                    partner={{
+                      ...item,
+                      name:    lang === 'ml' && item.nameMl    ? item.nameMl    : item.name,
+                      tagline: lang === 'ml' && item.taglineMl ? item.taglineMl : item.tagline,
+                    }}
+                    onPress={() => navigation.navigate('Partner', { partnerId: item.id })}
+                  />
+                )}
               />
-            )}
-          />
+            </>
+          )}
         </View>
 
         <View style={{ height: 100 }} />
@@ -169,17 +219,6 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
-  forraCard: {
-    margin: space.lg, borderRadius: radii.lg, overflow: 'hidden', height: 170,
-  },
-  forraImg: { width: '100%', height: '100%' },
-  forraOverlay: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.78)', padding: space.md,
-  },
-  forraTag: { fontSize: 10, fontWeight: '800', color: colors.accent, letterSpacing: 1 },
-  forraTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginTop: 2 },
-  forraSub: { fontSize: 13, color: '#E2E8F0', marginTop: 4 },
   tabs: { flexDirection: 'row', gap: 10, paddingHorizontal: space.lg },
   tabBtn: {
     flex: 1, padding: space.md, borderRadius: radii.lg,
@@ -197,6 +236,13 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
   chipTxt: { fontSize: 13, fontWeight: '700', color: colors.inkSoft },
   sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.inkSoft, marginBottom: space.md },
+  center: { alignItems: 'center', paddingVertical: space.xl, gap: 10 },
+  statusTxt: { fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
+  retryBtn: {
+    paddingHorizontal: 20, paddingVertical: 8, borderRadius: radii.md,
+    backgroundColor: colors.brand, marginTop: 4,
+  },
+  retryTxt: { color: '#fff', fontWeight: '700' },
   fab: {
     position: 'absolute', bottom: 18, left: 18, right: 18,
     backgroundColor: colors.brand, borderRadius: radii.lg,
