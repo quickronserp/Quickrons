@@ -37,9 +37,10 @@ const ZONES = [
 ];
 
 const USERS = [
-  { phone: '9876543210', name: 'Test Customer', role: 'CUSTOMER' },
-  { phone: '9876543211', name: 'Fathima',       role: 'PARTNER'  },
-  { phone: '9876543212', name: 'Rajan K',       role: 'RIDER'    },
+  { phone: '9876543210', name: 'Test Customer',   role: 'CUSTOMER' },
+  { phone: '9876543211', name: 'Fathima',          role: 'PARTNER'  },
+  { phone: '9876543212', name: 'Rajan K',          role: 'RIDER'    },
+  { phone: '9876543219', name: 'Quickrons Admin',  role: 'ADMIN'    },
 ];
 
 const MENU = [

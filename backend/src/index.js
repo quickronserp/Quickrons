@@ -17,6 +17,7 @@ const addressRoutes   = require('./routes/addresses');
 const kitchenRoutes   = require('./routes/kitchens');
 const partnerPortal   = require('./routes/partner');
 const riderPortal     = require('./routes/rider');
+const adminRoutes     = require('./routes/admin');
 
 const app = express();
 app.use(cors());
@@ -40,6 +41,7 @@ app.use('/api/v1/addresses', addressRoutes);
 app.use('/api/v1/kitchens',  kitchenRoutes);
 app.use('/api/v1/partner',   partnerPortal);
 app.use('/api/v1/rider',     riderPortal);
+app.use('/api/v1/admin',     adminRoutes);
 
 // Admin dashboard (single static HTML file served from backend/admin/).
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
