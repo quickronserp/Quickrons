@@ -1,3 +1,21 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Quickrons — Phase 2 MVP schema (single source of truth)
+//
+// Locked invariants (do not violate):
+//   • BigInt paise on every wallet/ledger column. Int paise OK on per-row money.
+//   • Append-only WalletTransaction — never updated, never deleted.
+//   • FSM-validated transitions in the service layer (Order, KYC, TamperSeal).
+//   • Modular monolith — one schema, one Prisma client.
+//   • Kerala-first closed-beta — Zone gates Address + Partner + Order.
+//   • Order is single-partner (no multi-vendor cart) — partnerId is required.
+//   • Snapshot pricing on OrderItem — pricePaise frozen at order placement.
+//
+// To apply:
+//   1. Replace prisma/schema.prisma with this file's contents.
+//   2. Read the "Migration warnings" section before `prisma migrate dev`.
+//   3. Run dev reset strategy if local data is disposable.
+// ─────────────────────────────────────────────────────────────────────────────
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,7 +25,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── Identity ────────────────────────────────────────────────────────────
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum UserRole {
   CUSTOMER
   RIDER
@@ -15,42 +34,40 @@ enum UserRole {
   ADMIN
 }
 
-model User {
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  role      UserRole @default(CUSTOMER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  orders    Order[]
+enum AddressLabel {
+  HOME
+  WORK
+  OTHER
 }
 
-model OTP {
-  id         String   @id @default(cuid())
-  phone      String
-  code       String
-  consumedAt DateTime?
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
-
-  @@index([phone, createdAt])
+enum PartnerCategory {
+  HOME_MAKER
+  RESTAURANT
+  CATERER
+  FORRA_SUPPLIER
 }
 
-// ─── Menu (Forra Foods Kitchen) ──────────────────────────────────────────
-model MenuItem {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  pricePaise  Int               // money in paise, never floats
-  isVeg       Boolean  @default(true)
-  signature   Boolean  @default(false)
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum VehicleType {
+  BIKE
+  SCOOTER
+  BICYCLE
+  EV_BIKE
 }
 
-// ─── Orders ──────────────────────────────────────────────────────────────
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum OrderStatus {
   PLACED
   CONFIRMED
@@ -63,67 +80,481 @@ enum OrderStatus {
   FAILED
 }
 
-model Order {
-  id            String      @id @default(cuid())
-  orderNumber   String      @unique          // QR-XXXXX
-  customerId    String?
-  customerPhone String
-  status        OrderStatus @default(PLACED)
-  totalPaise    Int
-  itemCount     Int
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  customer      User?       @relation(fields: [customerId], references: [id])
-  items         OrderItem[]
-
-  @@index([customerPhone, createdAt])
-  @@index([status])
+enum PaymentMethod {
+  RAZORPAY
+  COD
+  WALLET
 }
 
-model OrderItem {
-  id         String  @id @default(cuid())
-  orderId    String
-  menuItemId String?                     // optional — snapshot-based, no strict FK
-  name       String                      // snapshot of menu item name at order time
-  pricePaise Int                         // snapshot of unit price
-  qty        Int
-
-  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@index([orderId])
-}
-
-// ─── Onboarding applications ─────────────────────────────────────────────
-enum ApplicationStatus {
+enum PaymentStatus {
   PENDING
-  APPROVED
-  REJECTED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
 }
+
+enum TamperSealStatus {
+  NONE
+  SEALED
+  VERIFIED_BY_RIDER
+  VERIFIED_BY_CUSTOMER
+  BROKEN
+}
+
+enum WalletOwnerType {
+  PARTNER
+  RIDER
+}
+
+enum WalletDirection {
+  CREDIT
+  DEBIT
+}
+
+enum WalletTxnKind {
+  ORDER_HOLD
+  ORDER_RELEASE
+  ORDER_PAYOUT
+  REFUND
+  ADJUSTMENT
+  SETTLEMENT_PAID
+  MANUAL_CREDIT
+  MANUAL_DEBIT
+}
+
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  PUSH
+  EMAIL
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ─── Identity ─────────────────────────────────────────────────────────────────
+
+model User {
+  id               String   @id @default(cuid())
+  phone            String   @unique
+  name             String?              // optional at signup; collected on first checkout
+  email            String?  @unique
+  role             UserRole @default(CUSTOMER)
+  isActive         Boolean  @default(true)
+  defaultAddressId String?  @unique     // current default delivery address
+  lastSeenAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  defaultAddress Address?       @relation("UserDefaultAddress", fields: [defaultAddressId], references: [id], onDelete: SetNull)
+  addresses      Address[]      @relation("UserAddresses")
+  favorites      Favorite[]
+  orders         Order[]        @relation("CustomerOrders")
+  orderEvents    OrderEvent[]
+  partner        Partner?
+  rider          Rider?
+  notifications  Notification[]
+
+  @@index([role])
+  @@index([createdAt])
+}
+
+model OTP {
+  id         String    @id @default(cuid())
+  phone      String
+  code       String
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+  @@index([expiresAt])
+}
+
+// ─── Geography ────────────────────────────────────────────────────────────────
+
+model Zone {
+  code         String   @id                  // slug: 'perinthalmanna', 'malappuram'
+  nameEn       String
+  nameMl       String
+  district     String
+  pincodes     String[]                      // postgres TEXT[]
+  isActive     Boolean  @default(false)      // closed-beta gating
+  centerLat    Decimal? @db.Decimal(10, 7)
+  centerLng    Decimal? @db.Decimal(10, 7)
+  radiusKm     Decimal? @db.Decimal(5, 2)
+  launchedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addresses Address[]
+  partners  Partner[]
+  riders    Rider[]
+  orders    Order[]
+
+  @@index([isActive])
+  @@index([district])
+}
+
+model Address {
+  id          String       @id @default(cuid())
+  userId      String
+  label       AddressLabel @default(HOME)
+  recipient   String                          // contact name on this drop
+  phone       String                          // contact phone (may differ from user.phone)
+  line1       String
+  line2       String?
+  landmark    String?
+  city        String
+  district    String
+  pincode     String
+  zoneCode    String?                         // null if outside closed-beta zones
+  lat         Decimal?     @db.Decimal(10, 7)
+  lng         Decimal?     @db.Decimal(10, 7)
+  notes       String?                         // gate code, "ring the bell", etc.
+  isDefault   Boolean      @default(false)
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user                User    @relation("UserAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  zone                Zone?   @relation(fields: [zoneCode], references: [code], onDelete: SetNull)
+  defaultedByUser     User?   @relation("UserDefaultAddress")
+  ordersDeliveredHere Order[]
+
+  @@index([userId, archivedAt])
+  @@index([zoneCode])
+  @@index([pincode])
+}
+
+// ─── Onboarding intake (raw applications, pre-approval) ───────────────────────
 
 model RiderApplication {
   id          String            @id @default(cuid())
   fullName    String
   phone       String
-  vehicleType String            // BIKE | SCOOTER | BICYCLE
+  vehicleType String                                  // free text at intake; canonicalized on approval
   location    String
   status      ApplicationStatus @default(PENDING)
+  reviewedAt  DateTime?
+  reviewerId  String?
+  notes       String?
   createdAt   DateTime          @default(now())
 
   @@index([phone])
-  @@index([status])
+  @@index([status, createdAt])
 }
 
 model PartnerApplication {
-  id        String            @id @default(cuid())
-  brand     String
-  ownerName String
-  phone     String
-  category  String             // HOME_COOK | RESTAURANT | CATERING | FORRA_SUPPLIER
-  location  String
-  status    ApplicationStatus  @default(PENDING)
-  createdAt DateTime           @default(now())
+  id         String            @id @default(cuid())
+  brand      String
+  ownerName  String
+  phone      String
+  category   String                                   // free text at intake; canonicalized on approval
+  location   String
+  status     ApplicationStatus @default(PENDING)
+  reviewedAt DateTime?
+  reviewerId String?
+  notes      String?
+  createdAt  DateTime          @default(now())
 
   @@index([phone])
-  @@index([status])
+  @@index([status, createdAt])
+}
+
+// ─── Partner (post-approval supply-side entity) ───────────────────────────────
+
+model Partner {
+  id               String          @id @default(cuid())
+  userId           String          @unique
+  brand            String
+  ownerName        String
+  category         PartnerCategory
+  kycStatus        KycStatus       @default(PENDING)
+  isActive         Boolean         @default(false)   // partner on/off switch (kitchen open)
+  zoneCode         String                            // anchored to one zone in Phase 2
+  commissionBps    Int             @default(1500)    // basis points; home-makers capped at 1000
+  fssaiNumber      String?
+  gstNumber        String?
+  bankAccountName  String?
+  bankAccountLast4 String?
+  ifscCode         String?
+  payoutNotes      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  zone      Zone       @relation(fields: [zoneCode], references: [code], onDelete: Restrict)
+  menuItems MenuItem[]
+  orders    Order[]
+  wallet    Wallet?
+
+  @@index([zoneCode, isActive])
+  @@index([kycStatus])
+  @@index([category])
+}
+
+// ─── Rider (post-approval delivery-side entity) ───────────────────────────────
+
+model Rider {
+  id            String      @id @default(cuid())
+  userId        String      @unique
+  fullName      String
+  vehicleType   VehicleType
+  vehicleNumber String?
+  licenseNumber String?
+  kycStatus     KycStatus   @default(PENDING)
+  isOnline      Boolean     @default(false)
+  isActive      Boolean     @default(true)
+  zoneCode      String                                // home zone
+  currentLat    Decimal?    @db.Decimal(10, 7)
+  currentLng    Decimal?    @db.Decimal(10, 7)
+  lastPingAt    DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  zone   Zone    @relation(fields: [zoneCode], references: [code], onDelete: Restrict)
+  orders Order[]
+  wallet Wallet?
+
+  @@index([zoneCode, isOnline, isActive])
+  @@index([kycStatus])
+}
+
+// ─── Menu (partner-owned) ─────────────────────────────────────────────────────
+
+model MenuItem {
+  id                     String   @id @default(cuid())
+  partnerId              String
+  name                   String
+  description            String
+  pricePaise             Int                                  // unit price, integer paise (< ₹2.1Cr safe)
+  isVeg                  Boolean  @default(true)
+  signature              Boolean  @default(false)
+  active                 Boolean  @default(true)
+  sortOrder              Int      @default(0)
+  category               String?                              // 'biryani', 'breakfast', etc.
+  imageUrl               String?
+  dailyQuantityLimit     Int?                                 // null = unlimited
+  dailyQuantityRemaining Int?                                 // reset by daily job
+  servingStartMinutes    Int?                                 // minutes from midnight, IST
+  servingEndMinutes      Int?
+  lastResetAt            DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  partner    Partner     @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  favorites  Favorite[]
+  orderItems OrderItem[]
+
+  @@index([partnerId, active, sortOrder])
+  @@index([signature])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  menuItemId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, menuItemId])
+  @@index([userId, createdAt])
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id                  String           @id @default(cuid())
+  orderNumber         String           @unique                  // QR-XXXXX
+  customerId          String?
+  customerPhone       String
+  customerName        String?                                   // snapshot at placement
+  partnerId           String
+  riderId             String?
+  zoneCode            String
+  deliveryAddressId   String?                                   // null if address row deleted; address snapshot still in columns below
+  // address snapshot (immutable once placed) ─────────────────────────────────
+  addrLine1           String
+  addrLine2           String?
+  addrLandmark        String?
+  addrCity            String
+  addrPincode         String
+  addrLat             Decimal?         @db.Decimal(10, 7)
+  addrLng             Decimal?         @db.Decimal(10, 7)
+  addrNotes           String?
+  // money ─────────────────────────────────────────────────────────────────────
+  subtotalPaise       Int
+  deliveryFeePaise    Int              @default(0)
+  packagingFeePaise   Int              @default(0)
+  taxPaise            Int              @default(0)
+  discountPaise       Int              @default(0)
+  totalPaise          Int
+  itemCount           Int
+  // status + FSM ──────────────────────────────────────────────────────────────
+  status              OrderStatus      @default(PLACED)
+  cancelledReason     String?
+  cancelledBy         UserRole?
+  // payment ───────────────────────────────────────────────────────────────────
+  paymentMethod       PaymentMethod    @default(RAZORPAY)
+  paymentStatus       PaymentStatus    @default(PENDING)
+  paymentRefId        String?                                   // Razorpay order_id
+  paymentCapturedAt   DateTime?
+  // tamper seal ───────────────────────────────────────────────────────────────
+  tamperSealCode      String?          @unique                  // nanoid(12), generated at placement
+  tamperSealStatus    TamperSealStatus @default(NONE)
+  tamperSealSealedAt  DateTime?                                 // partner sealed bag
+  tamperSealRiderAt   DateTime?                                 // rider verified at pickup
+  tamperSealCustAt    DateTime?                                 // customer verified at delivery
+  // scheduling ────────────────────────────────────────────────────────────────
+  scheduledFor        DateTime?
+  estimatedReadyAt    DateTime?
+  estimatedDeliveryAt DateTime?
+  pickedUpAt          DateTime?
+  deliveredAt         DateTime?
+  // audit ─────────────────────────────────────────────────────────────────────
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  customer        User?          @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: SetNull)
+  partner         Partner        @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  rider           Rider?         @relation(fields: [riderId], references: [id], onDelete: SetNull)
+  zone            Zone           @relation(fields: [zoneCode], references: [code], onDelete: Restrict)
+  deliveryAddress Address?       @relation(fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  events          OrderEvent[]
+  walletTxns      WalletTransaction[]
+  notifications   Notification[]
+
+  @@index([customerPhone, createdAt])
+  @@index([customerId, createdAt])
+  @@index([partnerId, status, createdAt])
+  @@index([riderId, status])
+  @@index([zoneCode, status])
+  @@index([status, createdAt])
+  @@index([paymentStatus])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  menuItemId  String?                                          // soft FK — survives menu deletion
+  name        String                                           // snapshot
+  pricePaise  Int                                              // snapshot of unit price
+  qty         Int
+  notesPerRow String?                                          // "no chilli", etc.
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+model OrderEvent {
+  id         String       @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  actorUserId String?
+  actorRole  UserRole?
+  note       String?
+  metadata   Json?
+  createdAt  DateTime     @default(now())
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor      User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([toStatus, createdAt])
+}
+
+// ─── Wallet (append-only double-entry ledger, BigInt paise) ───────────────────
+//
+// A Wallet is owned by exactly one Partner OR one Rider.
+// Both `partnerId` and `riderId` are nullable + @unique; a CHECK constraint
+// (added via raw SQL in the migration) enforces exactly-one-set.
+
+model Wallet {
+  id              String          @id @default(cuid())
+  ownerType       WalletOwnerType
+  partnerId       String?         @unique
+  riderId         String?         @unique
+  balancePaise    BigInt          @default(0)                   // available balance
+  holdPaise       BigInt          @default(0)                   // escrowed against in-flight orders
+  lifetimeCreditPaise BigInt      @default(0)
+  lifetimeDebitPaise  BigInt      @default(0)
+  currency        String          @default("INR")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  partner      Partner?            @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  rider        Rider?              @relation(fields: [riderId], references: [id], onDelete: Restrict)
+  transactions WalletTransaction[]
+
+  @@index([ownerType])
+}
+
+model WalletTransaction {
+  id                  String          @id @default(cuid())
+  walletId            String
+  direction           WalletDirection
+  kind                WalletTxnKind
+  amountPaise         BigInt
+  balanceAfterPaise   BigInt
+  idempotencyKey      String          @unique                   // every mutator must supply
+  orderId             String?
+  note                String?
+  metadata            Json?
+  createdAt           DateTime        @default(now())
+  // NO updatedAt — append-only.
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, createdAt])
+  @@index([orderId])
+  @@index([kind, createdAt])
+}
+
+// ─── Notifications (WhatsApp-first, multi-channel ready) ──────────────────────
+
+model Notification {
+  id                String              @id @default(cuid())
+  userId            String?
+  phone             String                                      // canonical contact even if no user row
+  channel           NotificationChannel @default(WHATSAPP)
+  templateKey       String                                      // e.g. 'order_placed_v1'
+  payload           Json                                        // template variables
+  status            NotificationStatus  @default(QUEUED)
+  providerName      String?                                     // 'WHATSAPP_CLOUD' | 'MSG91' | ...
+  providerMessageId String?                                     // wamid / msg91 id
+  errorCode         String?
+  errorMessage      String?
+  attempts          Int                 @default(0)
+  orderId           String?
+  queuedAt          DateTime            @default(now())
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, queuedAt])
+  @@index([phone, queuedAt])
+  @@index([orderId])
+  @@index([status, queuedAt])
+  @@index([providerMessageId])
 }

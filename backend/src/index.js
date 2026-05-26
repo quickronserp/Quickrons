@@ -7,11 +7,16 @@ const cors    = require('cors');
 const prisma  = require('./prisma');
 const { notFoundHandler, errorHandler } = require('./error');
 
-const authRoutes     = require('./routes/auth');
-const menuRoutes     = require('./routes/menu');
-const orderRoutes    = require('./routes/orders');
-const riderRoutes    = require('./routes/riders');
-const partnerRoutes  = require('./routes/partners');
+const authRoutes      = require('./routes/auth');
+const menuRoutes      = require('./routes/menu');
+const orderRoutes     = require('./routes/orders');
+const riderRoutes     = require('./routes/riders');
+const partnerRoutes   = require('./routes/partners');
+const customerRoutes  = require('./routes/customers');
+const addressRoutes   = require('./routes/addresses');
+const kitchenRoutes   = require('./routes/kitchens');
+const partnerPortal   = require('./routes/partner');
+const riderPortal     = require('./routes/rider');
 
 const app = express();
 app.use(cors());
@@ -25,11 +30,16 @@ app.get('/health', async (_req, res) => {
 });
 
 // API v1.
-app.use('/api/v1/auth',     authRoutes);
-app.use('/api/v1/menu',     menuRoutes);
-app.use('/api/v1/orders',   orderRoutes);
-app.use('/api/v1/riders',   riderRoutes);
-app.use('/api/v1/partners', partnerRoutes);
+app.use('/api/v1/auth',      authRoutes);
+app.use('/api/v1/menu',      menuRoutes);
+app.use('/api/v1/orders',    orderRoutes);
+app.use('/api/v1/riders',    riderRoutes);
+app.use('/api/v1/partners',  partnerRoutes);
+app.use('/api/v1/customers', customerRoutes);
+app.use('/api/v1/addresses', addressRoutes);
+app.use('/api/v1/kitchens',  kitchenRoutes);
+app.use('/api/v1/partner',   partnerPortal);
+app.use('/api/v1/rider',     riderPortal);
 
 // Admin dashboard (single static HTML file served from backend/admin/).
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
