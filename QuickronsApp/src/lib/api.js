@@ -1,4 +1,4 @@
-export const API_BASE = 'http://localhost:8080';
+export const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
 
 class ApiError extends Error {
   constructor(message, { status, code, details } = {}) {
@@ -8,6 +8,13 @@ class ApiError extends Error {
     this.code = code;
     this.details = details;
   }
+}
+
+// Module-level 401 handler — set by AuthProvider on mount.
+// When the backend rejects a token (expired/invalid), we auto-signout.
+let _unauthorizedHandler = null;
+export function setUnauthorizedHandler(fn) {
+  _unauthorizedHandler = fn;
 }
 
 async function request(path, { method = 'GET', body, token } = {}) {
@@ -30,6 +37,12 @@ async function request(path, { method = 'GET', body, token } = {}) {
 
   if (!res.ok) {
     const err = data?.error || {};
+
+    // Auto-signout on 401 — expired or invalid token
+    if (res.status === 401 && _unauthorizedHandler) {
+      _unauthorizedHandler();
+    }
+
     throw new ApiError(err.message || `HTTP ${res.status}`, {
       status: res.status,
       code: err.code,

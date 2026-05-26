@@ -7,6 +7,7 @@ import { colors, radii, space } from '../theme';
 
 export default function CartScreen({ navigation }) {
   const { items, updateQty, subtotal, deliveryFee, platformFee, gst, total, isPlus } = useCart();
+  const canGoBack = navigation.canGoBack();
 
   if (items.length === 0) {
     return (
@@ -24,9 +25,13 @@ export default function CartScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={20} color={colors.ink} />
-        </Pressable>
+        {canGoBack ? (
+          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={20} color={colors.ink} />
+          </Pressable>
+        ) : (
+          <View style={styles.backBtn} />
+        )}
         <Text style={styles.title}>Your cart</Text>
         <View style={{ width: 38 }} />
       </View>

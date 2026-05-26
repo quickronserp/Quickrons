@@ -21,7 +21,7 @@ const adminRoutes     = require('./routes/admin');
 const { initSocket }  = require('./socket');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json({ limit: '256kb' }));
 
 // Health.

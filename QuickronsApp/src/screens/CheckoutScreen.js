@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
@@ -30,17 +30,19 @@ export default function CheckoutScreen({ navigation }) {
     queryFn:  () => addressesApi.list(accessToken),
     enabled:  !!accessToken,
     select:   (res) => res.addresses || res || [],
-    onSuccess: (list) => {
-      // Auto-select default or first address
-      if (!selectedAddr && list.length > 0) {
-        const def = list.find(a => a.isDefault) || list[0];
-        setSelectedAddr(def.id);
-      }
-    },
   });
 
   const addresses = addrData || [];
   const activeAddress = addresses.find(a => a.id === selectedAddr) || addresses[0];
+
+  // Auto-select default or first address once data loads.
+  // NOTE: useQuery onSuccess was removed in TanStack Query v5 — use useEffect instead.
+  useEffect(() => {
+    if (!selectedAddr && addresses.length > 0) {
+      const def = addresses.find(a => a.isDefault) || addresses[0];
+      setSelectedAddr(def.id);
+    }
+  }, [addresses]);
 
   // ── Place order ───────────────────────────────────────────────────────────────
 
@@ -216,7 +218,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg, padding: space.md, borderRadius: radii.md,
     borderWidth: 1, borderColor: colors.border, marginBottom: 8,
   },
-  addrRowActive: { borderColor: colors.brand, backgroundColor: '#FFF1F4' },
+  addrRowActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   cardTitle: { fontSize: 14, fontWeight: '700', color: colors.ink },
   cardDesc: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
   payRow: {
@@ -224,7 +226,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg, padding: space.md, borderRadius: radii.md,
     borderWidth: 1, borderColor: colors.border, marginBottom: 8,
   },
-  payRowActive: { borderColor: colors.brand, backgroundColor: '#FFF1F4' },
+  payRowActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   radio: {
     width: 20, height: 20, borderRadius: 10,
     borderWidth: 2, borderColor: colors.inkMuted,

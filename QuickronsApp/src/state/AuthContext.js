@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import * as storage from '../lib/storage.js';
+import { setUnauthorizedHandler } from '../lib/api';
+import socketClient from '../lib/socket';
 
 const STORAGE_KEY = 'quickrons.session';
 const AuthContext = createContext(null);
@@ -28,6 +30,14 @@ export function AuthProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Register a global 401 handler so any API call with an expired token
+  // automatically signs the user out instead of showing a cryptic error.
+  useEffect(() => {
+    setUnauthorizedHandler(signOut);
+    return () => setUnauthorizedHandler(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const login = async ({ accessToken: a, refreshToken: r, user: u }) => {
     await storage.setItem(STORAGE_KEY, JSON.stringify({ accessToken: a, refreshToken: r, user: u }));
     setAccessToken(a);
@@ -40,6 +50,8 @@ export function AuthProvider({ children }) {
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);
+    // Disconnect socket so a new session starts fresh
+    socketClient.disconnect();
   };
 
   const value = useMemo(() => ({

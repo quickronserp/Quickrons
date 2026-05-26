@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -11,7 +11,7 @@ import { useAuth } from '../state/AuthContext';
 
 export default function PartnerScreen({ route, navigation }) {
   const { partnerId } = route.params;
-  const { add, items } = useCart();
+  const { add, clear, items } = useCart();
   const { accessToken } = useAuth();
 
   const { data: kitchen, isLoading: kitchenLoading } = useQuery({
@@ -67,7 +67,27 @@ export default function PartnerScreen({ route, navigation }) {
   const cartPartner = { ...kitchen, name };
 
   const handleAdd = (menuItem) => {
-    if (!menuItem.isAvailable) return;
+    // Strict check: only block when explicitly set to false (null/undefined = available)
+    if (menuItem.isAvailable === false) return;
+
+    // Multi-kitchen guard: if cart has items from a different kitchen, ask user
+    const existingPartnerId = items.length > 0 ? items[0].partner?.id : null;
+    if (existingPartnerId && existingPartnerId !== cartPartner.id) {
+      Alert.alert(
+        'Start a new order?',
+        `Your cart has items from another kitchen. Clear it and start an order from ${name}?`,
+        [
+          { text: 'Keep current cart', style: 'cancel' },
+          {
+            text: 'Start new order',
+            style: 'destructive',
+            onPress: () => { clear(); add(menuItem, cartPartner); },
+          },
+        ]
+      );
+      return;
+    }
+
     add(menuItem, cartPartner);
   };
 

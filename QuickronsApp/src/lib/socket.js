@@ -35,16 +35,19 @@ const socketClient = {
       reconnectionDelay: 2000,
     });
 
+    // __DEV__ is a Metro global; guard it for Expo Web (Webpack) compatibility.
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+
     socket.on('connect', () => {
-      if (__DEV__) console.log('[socket] connected', socket.id);
+      if (isDev) console.log('[socket] connected', socket.id);
     });
 
     socket.on('disconnect', (reason) => {
-      if (__DEV__) console.log('[socket] disconnected', reason);
+      if (isDev) console.log('[socket] disconnected', reason);
     });
 
     socket.on('connect_error', (err) => {
-      if (__DEV__) console.warn('[socket] connect_error', err.message);
+      if (isDev) console.warn('[socket] connect_error', err.message);
     });
 
     return socket;
