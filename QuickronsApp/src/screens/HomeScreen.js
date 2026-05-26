@@ -11,6 +11,26 @@ import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useI18n } from '../i18n';
 
+// Inline wordmark — avoids an extra component file import
+function QuickronsWordmark() {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ justifyContent: 'center', marginRight: 2 }}>
+        {[0, 1, 2].map(i => (
+          <View key={i} style={{
+            width: 5, height: 3, borderRadius: 2,
+            backgroundColor: colors.brand,
+            marginBottom: i < 2 ? 2 : 0,
+          }} />
+        ))}
+      </View>
+      <Text style={{ fontSize: 20, fontWeight: '800', color: colors.brand, letterSpacing: -0.3 }}>
+        quickrons
+      </Text>
+    </View>
+  );
+}
+
 // Backend businessType → frontend filter segment
 const TYPE_TO_SEGMENT = {
   FORRA_KITCHEN: 'forra',
@@ -72,29 +92,30 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greet} numberOfLines={1}>
-            {greeting}, {displayName}
+        {/* Brand wordmark */}
+        <QuickronsWordmark />
+
+        {/* Location */}
+        <Pressable style={styles.locRow}>
+          <Ionicons name="location" size={12} color={colors.brand} />
+          <Text style={styles.loc} numberOfLines={1}>
+            {lang === 'ml' ? ZONE.nameMl : ZONE.name}
           </Text>
-          <View style={styles.locRow}>
-            <Ionicons name="location" size={14} color={colors.brand} />
-            <Text style={styles.loc}>
-              {lang === 'ml' ? ZONE.nameMl : ZONE.name}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color={colors.inkMuted} />
-          </View>
-        </View>
+          <Ionicons name="chevron-down" size={12} color={colors.inkMuted} />
+        </Pressable>
+
+        <View style={{ flex: 1 }} />
 
         {/* Language toggle */}
         <Pressable
           onPress={() => setLang(lang === 'ml' ? 'en' : 'ml')}
           style={styles.langPill}>
-          <Ionicons name="language" size={14} color={colors.ink} />
-          <Text style={styles.langTxt}>{lang === 'ml' ? 'മലയാളം' : 'English'}</Text>
+          <Ionicons name="language" size={13} color={colors.inkSoft} />
+          <Text style={styles.langTxt}>{lang === 'ml' ? 'ML' : 'EN'}</Text>
         </Pressable>
 
         <Pressable onPress={() => navigation.navigate('Profile')} style={styles.avatar}>
-          <Ionicons name="person" size={18} color={colors.bg} />
+          <Ionicons name="person" size={16} color="#fff" />
         </Pressable>
       </View>
 
@@ -203,20 +224,26 @@ export default function HomeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+    backgroundColor: colors.bg,
   },
-  greet: { fontSize: 17, fontWeight: '700', color: colors.ink },
-  locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  loc: { fontSize: 13, color: colors.inkSoft, fontWeight: '600' },
+  locRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: colors.bgAlt, borderWidth: 1, borderColor: colors.border,
+    maxWidth: 130,
+  },
+  loc: { fontSize: 11, color: colors.inkSoft, fontWeight: '700', flexShrink: 1 },
   langPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999,
     backgroundColor: colors.bgAlt, borderWidth: 1, borderColor: colors.border,
   },
-  langTxt: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  langTxt: { fontSize: 11, fontWeight: '800', color: colors.inkSoft },
   avatar: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: colors.brand,
+    width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
   tabs: { flexDirection: 'row', gap: 10, paddingHorizontal: space.lg },

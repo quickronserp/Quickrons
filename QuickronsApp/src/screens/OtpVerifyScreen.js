@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgAlt,
     alignItems: 'center', justifyContent: 'center',
   },
-  otpBoxActive: { borderColor: colors.brand, backgroundColor: '#F0FDF4' },
+  otpBoxActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   otpBoxFilled: { borderColor: colors.brand, backgroundColor: colors.bg },
   otpDigit:     { fontSize: 22, fontWeight: '800', color: colors.ink },
 

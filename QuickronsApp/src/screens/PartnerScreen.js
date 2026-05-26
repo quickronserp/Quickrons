@@ -169,7 +169,11 @@ export default function PartnerScreen({ route, navigation }) {
 function MenuItemRow({ item, cartItems, onAdd }) {
   const cartEntry = cartItems.find(i => i.menuItem.id === item.id);
   const qty       = cartEntry?.qty || 0;
-  const unavailable = !item.isAvailable || item.dailyQuantityRemaining === 0;
+  // isAvailable === false → explicitly disabled by partner.
+  // dailyQuantityRemaining null/undefined → no daily cap (unlimited); 0 → sold out today.
+  const unavailable =
+    item.isAvailable === false ||
+    (item.dailyQuantityRemaining != null && item.dailyQuantityRemaining <= 0);
 
   return (
     <View style={[menuStyles.row, unavailable && menuStyles.rowDim]}>

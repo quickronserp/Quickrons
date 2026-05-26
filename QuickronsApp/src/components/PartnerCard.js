@@ -5,44 +5,110 @@ import SegmentBadge from './SegmentBadge';
 import { colors, radii, space } from '../theme';
 
 export default function PartnerCard({ partner, onPress }) {
+  const rating   = typeof partner.rating === 'number' ? partner.rating : null;
+  const etaMins  = partner.etaMins  || partner.avgDeliveryMinutes || null;
+  const location = partner.location || partner.city || '';
+  const locLabel = location ? location.split(',')[0] : null;
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}>
-      <Image source={{ uri: partner.image }} style={styles.image} />
-      <View style={{ padding: space.md }}>
-        <SegmentBadge segment={partner.segment} size="sm" />
-        <Text style={styles.name} numberOfLines={1}>{partner.name}</Text>
-        <Text style={styles.tag} numberOfLines={1}>{partner.tagline}</Text>
-        <View style={styles.row}>
-          <View style={styles.metaPill}>
-            <Ionicons name="star" size={12} color={colors.accent} />
-            <Text style={styles.metaTxt}>{partner.rating.toFixed(1)}</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Ionicons name="time-outline" size={12} color={colors.inkSoft} />
-            <Text style={styles.metaTxt}>{partner.etaMins} min</Text>
-          </View>
-          <View style={styles.metaPill}>
-            <Ionicons name="location-outline" size={12} color={colors.inkSoft} />
-            <Text style={styles.metaTxt} numberOfLines={1}>{partner.location.split(',')[0]}</Text>
-          </View>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
+
+      {/* Hero image */}
+      {partner.image ? (
+        <Image source={{ uri: partner.image }} style={styles.image} resizeMode="cover" />
+      ) : (
+        <View style={[styles.image, styles.imagePlaceholder]}>
+          <Ionicons name="restaurant" size={32} color={colors.inkMuted} />
         </View>
+      )}
+
+      {/* Content */}
+      <View style={styles.body}>
+        <View style={styles.topRow}>
+          <SegmentBadge segment={partner.segment} size="sm" />
+          {rating != null && rating > 0 && (
+            <View style={styles.ratingPill}>
+              <Ionicons name="star" size={11} color={colors.accent} />
+              <Text style={styles.ratingTxt}>{rating.toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.name} numberOfLines={1}>{partner.name}</Text>
+        {partner.tagline ? (
+          <Text style={styles.tag} numberOfLines={1}>{partner.tagline}</Text>
+        ) : null}
+
+        <View style={styles.metaRow}>
+          {etaMins != null && (
+            <MetaPill icon="time-outline" label={`${etaMins} min`} />
+          )}
+          {locLabel ? (
+            <MetaPill icon="location-outline" label={locLabel} />
+          ) : null}
+        </View>
+      </View>
+
+      {/* "Order" CTA hint */}
+      <View style={styles.orderHint}>
+        <Text style={styles.orderHintTxt}>Order</Text>
+        <Ionicons name="arrow-forward" size={12} color={colors.brand} />
       </View>
     </Pressable>
   );
 }
 
+function MetaPill({ icon, label }) {
+  return (
+    <View style={pillStyles.pill}>
+      <Ionicons name={icon} size={11} color={colors.inkSoft} />
+      <Text style={pillStyles.txt} numberOfLines={1}>{label}</Text>
+    </View>
+  );
+}
+
+const pillStyles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: colors.bgAlt, paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 999,
+  },
+  txt: { fontSize: 11, color: colors.inkSoft, fontWeight: '600', maxWidth: 90 },
+});
+
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.bg, borderRadius: radii.lg, marginBottom: space.lg,
+    backgroundColor: colors.bg, borderRadius: radii.lg, marginBottom: space.md,
     overflow: 'hidden', borderWidth: 1, borderColor: colors.border,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 }, elevation: 2,
   },
-  image: { width: '100%', height: 150, backgroundColor: colors.bgAlt },
-  name: { marginTop: 6, fontSize: 17, fontWeight: '700', color: colors.ink },
-  tag: { marginTop: 2, fontSize: 13, color: colors.inkSoft },
-  row: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
-  metaPill: {
+  cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+
+  image: { width: '100%', height: 148, backgroundColor: colors.bgAlt },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+
+  body: { padding: space.md, paddingBottom: 8 },
+  topRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  },
+  ratingPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: colors.accent + '18',
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
+  },
+  ratingTxt: { fontSize: 11, fontWeight: '800', color: colors.inkSoft },
+
+  name: { marginTop: 6, fontSize: 16, fontWeight: '800', color: colors.ink },
+  tag:  { marginTop: 2, fontSize: 12, color: colors.inkSoft },
+  metaRow: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
+
+  orderHint: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: colors.bgAlt, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: space.md, paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: colors.border,
   },
-  metaTxt: { fontSize: 12, color: colors.inkSoft, fontWeight: '600' },
+  orderHintTxt: { fontSize: 12, fontWeight: '700', color: colors.brand },
 });

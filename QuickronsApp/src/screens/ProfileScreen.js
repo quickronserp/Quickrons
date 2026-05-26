@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
-import { colors, radii, space } from '../theme';
+import { colors, radii, space, segmentMeta } from '../theme';
 
 export default function ProfileScreen({ navigation }) {
   const { isPlus } = useCart();
@@ -16,12 +16,17 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       <ScrollView contentContainerStyle={{ padding: space.lg }}>
+        {/* Profile header */}
         <View style={styles.head}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={32} color="#fff" />
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatar}>
+              <Ionicons name="person" size={30} color="#fff" />
+            </View>
+            {/* Brand ring */}
+            <View style={styles.avatarRing} />
           </View>
           {displayName ? <Text style={styles.name}>{displayName}</Text> : null}
-          <Text style={styles.email}>{phone}</Text>
+          {phone ? <Text style={styles.phone}>{phone}</Text> : null}
           {isPlus && (
             <View style={styles.plusPill}>
               <Ionicons name="diamond" size={12} color={colors.accent} />
@@ -75,15 +80,22 @@ function Action({ icon, color, title, desc, onPress }) {
 
 const styles = StyleSheet.create({
   head: {
-    backgroundColor: colors.bg, borderRadius: radii.lg, padding: space.lg,
+    backgroundColor: colors.bg, borderRadius: radii.lg, padding: space.xl,
     alignItems: 'center', borderWidth: 1, borderColor: colors.border,
+    shadowColor: colors.brand, shadowOpacity: 0.08, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  },
+  avatarWrap: { position: 'relative', marginBottom: 12 },
+  avatarRing: {
+    position: 'absolute', top: -4, left: -4, right: -4, bottom: -4,
+    borderRadius: 44, borderWidth: 2, borderColor: colors.brand + '40',
   },
   avatar: {
-    width: 70, height: 70, borderRadius: 35, backgroundColor: colors.brand,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    width: 72, height: 72, borderRadius: 36, backgroundColor: colors.brand,
+    alignItems: 'center', justifyContent: 'center',
   },
-  name: { fontSize: 19, fontWeight: '800', color: colors.ink },
-  email: { fontSize: 13, color: colors.inkSoft, marginTop: 2 },
+  name:  { fontSize: 19, fontWeight: '800', color: colors.ink },
+  phone: { fontSize: 13, color: colors.inkSoft, marginTop: 3 },
   plusPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: colors.ink, paddingHorizontal: 10, paddingVertical: 4,
