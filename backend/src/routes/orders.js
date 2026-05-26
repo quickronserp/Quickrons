@@ -15,6 +15,10 @@ const prisma  = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken } = require('../middleware/auth');
 const { generateOrderNumber } = require('../utils/orderNumber');
+const {
+  emitOrderPlaced,
+  emitOrderCancelled,
+} = require('../socket');
 
 const router = express.Router();
 
@@ -283,6 +287,7 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
     include: ORDER_INCLUDE,
   });
 
+  emitOrderPlaced(order);
   res.status(201).json({ order });
 }));
 
@@ -356,6 +361,7 @@ router.post('/:id/cancel', verifyToken, asyncH(async (req, res) => {
     }),
   ]);
 
+  emitOrderCancelled(updated);
   res.json({ order: updated });
 }));
 

@@ -18,6 +18,7 @@ const kitchenRoutes   = require('./routes/kitchens');
 const partnerPortal   = require('./routes/partner');
 const riderPortal     = require('./routes/rider');
 const adminRoutes     = require('./routes/admin');
+const { initSocket }  = require('./socket');
 
 const app = express();
 app.use(cors());
@@ -55,6 +56,9 @@ const PORT = process.env.PORT || 8080;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[quickrons] backend on :${PORT}`);
 });
+
+// Attach Socket.IO to the same HTTP server — no extra port needed.
+initSocket(server);
 
 // Graceful shutdown so Prisma drains.
 const shutdown = async () => {

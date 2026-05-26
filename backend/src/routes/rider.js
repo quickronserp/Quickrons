@@ -24,6 +24,12 @@ const express = require('express');
 const prisma  = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const {
+  emitRiderAssigned,
+  emitRiderVerifiedSeal,
+  emitOrderPickedUp,
+  emitOrderDelivered,
+} = require('../socket');
 
 const router = express.Router();
 
@@ -227,6 +233,7 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
   ], { timeout: 15000 });
 
   const order = await fetchFullOrder(accepted.id);
+  emitRiderAssigned(order);
   res.json({ order });
 }));
 
@@ -293,6 +300,7 @@ router.post('/orders/:id/verify-seal', asyncH(async (req, res) => {
   ], { timeout: 15000 });
 
   const updated = await fetchFullOrder(order.id);
+  emitRiderVerifiedSeal(updated);
   res.json({ order: updated });
 }));
 
@@ -338,6 +346,7 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
   ], { timeout: 15000 });
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderPickedUp(updated);
   res.json({ order: updated });
 }));
 
@@ -525,6 +534,7 @@ router.post('/orders/:id/delivered', asyncH(async (req, res) => {
   }
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderDelivered(updated);
   res.json({ order: updated });
 }));
 

@@ -16,6 +16,13 @@ const express      = require('express');
 const prisma       = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const {
+  emitOrderConfirmed,
+  emitOrderPreparing,
+  emitOrderReady,
+  emitOrderSealed,
+  emitOrderCancelled,
+} = require('../socket');
 
 // ─── Tamper seal helpers ──────────────────────────────────────────────────────
 
@@ -246,6 +253,7 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
   await commitTransition(order, 'CONFIRMED', updateData, eventNote, req.user.id);
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderConfirmed(updated);
   res.json({ order: updated });
 }));
 
@@ -319,6 +327,7 @@ router.post('/orders/:id/reject', asyncH(async (req, res) => {
   await prisma.$transaction(txOps, { timeout: 15000 });
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderCancelled(updated);
   res.json({ order: updated });
 }));
 
@@ -336,6 +345,7 @@ router.post('/orders/:id/preparing', asyncH(async (req, res) => {
   );
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderPreparing(updated);
   res.json({ order: updated });
 }));
 
@@ -375,6 +385,7 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
   }
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderReady(updated);
   res.json({ order: updated, tamperSealCode: sealCode });
 }));
 
@@ -426,6 +437,7 @@ router.post('/orders/:id/seal', asyncH(async (req, res) => {
   ], { timeout: 15000 });
 
   const updated = await fetchFullOrder(order.id);
+  emitOrderSealed(updated);
   res.json({ order: updated });
 }));
 
