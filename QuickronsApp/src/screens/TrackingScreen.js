@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -46,6 +46,9 @@ export default function TrackingScreen({ route, navigation }) {
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
   const [cancelled, setCancelled] = useState(false);
+  const [deliveryCode, setDeliveryCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [codeVerified, setCodeVerified] = useState(false);
 
   // ── Fetch order ────────────────────────────────────────────────────────────
 
@@ -165,6 +168,21 @@ export default function TrackingScreen({ route, navigation }) {
 
   const etaMins = Math.max(2, 30 - stage * 6);
 
+  const verifyDeliveryCode = async () => {
+    if (deliveryCode.length !== 6) return;
+    setVerifyingCode(true);
+    try {
+      await ordersApi.verifyDeliveryCode(orderId, deliveryCode, accessToken);
+      setCodeVerified(true);
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      Alert.alert('✓ Verified', 'Delivery code confirmed! The rider will now complete delivery.');
+    } catch (e) {
+      Alert.alert('Invalid Code', e.message || 'Code does not match. Check with the rider.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <View style={styles.header}>
@@ -227,6 +245,49 @@ export default function TrackingScreen({ route, navigation }) {
             </Text>
           </View>
         ) : null}
+
+        {/* Delivery code verification — shown when rider is at door */}
+        {(status === 'PICKED_UP') && !codeVerified && (
+          <View style={styles.verifyCard}>
+            <View style={styles.verifyHeader}>
+              <Ionicons name="shield-half" size={20} color={colors.brand} />
+              <Text style={styles.verifyTitle}>Verify Delivery Code</Text>
+            </View>
+            <Text style={styles.verifyHint}>
+              The rider is at your door. Enter the 6-digit code from the sealed bag to confirm delivery.
+            </Text>
+            <View style={styles.verifyRow}>
+              <TextInput
+                style={styles.verifyInput}
+                placeholder="6-digit code"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={deliveryCode}
+                onChangeText={setDeliveryCode}
+              />
+              <Pressable
+                onPress={verifyDeliveryCode}
+                disabled={deliveryCode.length !== 6 || verifyingCode}
+                style={[styles.verifyBtn, (deliveryCode.length !== 6 || verifyingCode) && { opacity: 0.4 }]}
+              >
+                {verifyingCode
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.verifyBtnTxt}>Verify</Text>
+                }
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {(codeVerified || (status === 'PICKED_UP' && order?.tamperSealStatus === 'VERIFIED_BY_CUSTOMER')) && (
+          <View style={[styles.trustCard, { backgroundColor: colors.success + '15' }]}>
+            <Ionicons name="shield-checkmark" size={20} color={colors.success} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.trustTitle}>Delivery code verified ✓</Text>
+              <Text style={styles.trustDesc}>Rider is completing the delivery now.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Tamper seal badge */}
         <View style={styles.trustCard}>
@@ -317,4 +378,22 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: space.xl,
   },
   doneTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  verifyCard: {
+    backgroundColor: colors.brandTint, borderRadius: radii.md, padding: space.md,
+    marginTop: space.md, borderWidth: 1, borderColor: colors.brand + '40',
+  },
+  verifyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  verifyTitle: { fontSize: 15, fontWeight: '800', color: colors.brand },
+  verifyHint: { fontSize: 13, color: colors.inkSoft, marginBottom: 12, lineHeight: 18 },
+  verifyRow: { flexDirection: 'row', gap: 8 },
+  verifyInput: {
+    flex: 1, borderWidth: 1, borderColor: colors.brand + '60', borderRadius: radii.sm,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 22, fontWeight: '800',
+    letterSpacing: 6, textAlign: 'center', backgroundColor: colors.bg,
+  },
+  verifyBtn: {
+    backgroundColor: colors.brand, paddingHorizontal: 18, paddingVertical: 10,
+    borderRadius: radii.sm, justifyContent: 'center',
+  },
+  verifyBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
 });

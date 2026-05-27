@@ -99,4 +99,72 @@ export const ordersApi = {
     ).toString();
     return request(`/api/v1/customers/me/orders${qs ? '?' + qs : ''}`, { token });
   },
+
+  verifyDeliveryCode: (id, code, token) =>
+    request(`/api/v1/orders/${id}/verify-delivery-code`, { method: 'POST', body: { code }, token }),
+};
+
+// ─── Partner Ops ──────────────────────────────────────────────────────────────
+
+export const partnerApi = {
+  orders: (token, status) => {
+    const qs = status ? `?status=${status}&limit=50` : '?limit=50';
+    return request(`/api/v1/partner/orders${qs}`, { token });
+  },
+  accept:    (id, token) =>
+    request(`/api/v1/partner/orders/${id}/accept`,    { method: 'POST', token }),
+  reject:    (id, reason, token) =>
+    request(`/api/v1/partner/orders/${id}/reject`,    { method: 'POST', body: { reason }, token }),
+  preparing: (id, token) =>
+    request(`/api/v1/partner/orders/${id}/preparing`, { method: 'POST', token }),
+  ready:     (id, token) =>
+    request(`/api/v1/partner/orders/${id}/ready`,     { method: 'POST', token }),
+  seal:      (id, token) =>
+    request(`/api/v1/partner/orders/${id}/seal`,      { method: 'POST', token }),
+  wallet:    (token) =>
+    request('/api/v1/partner/wallet', { token }),
+};
+
+// ─── Rider Ops ────────────────────────────────────────────────────────────────
+
+export const riderOpsApi = {
+  me:         (token) =>
+    request('/api/v1/rider/me', { token }),
+  setOnline:  (isOnline, token) =>
+    request('/api/v1/rider/me/online', { method: 'POST', body: { isOnline }, token }),
+  available:  (token) =>
+    request('/api/v1/rider/orders/available', { token }),
+  myOrders:   (token, status) => {
+    const qs = status ? `?status=${status}` : '';
+    return request(`/api/v1/rider/me/orders${qs}`, { token });
+  },
+  accept:     (id, token) =>
+    request(`/api/v1/rider/orders/${id}/accept`,      { method: 'POST', token }),
+  verifySeal: (id, code, token) =>
+    request(`/api/v1/rider/orders/${id}/verify-seal`, { method: 'POST', body: { code }, token }),
+  pickedUp:   (id, token) =>
+    request(`/api/v1/rider/orders/${id}/picked-up`,   { method: 'POST', token }),
+  delivered:  (id, token) =>
+    request(`/api/v1/rider/orders/${id}/delivered`,   { method: 'POST', token }),
+  wallet:     (token) =>
+    request('/api/v1/rider/wallet', { token }),
+};
+
+// ─── Admin Ops ────────────────────────────────────────────────────────────────
+
+export const adminApi = {
+  orders: (token, status) => {
+    const qs = status ? `?status=${status}&limit=50` : '?limit=50';
+    return request(`/api/v1/admin/orders${qs}`, { token });
+  },
+  analytics: (token) =>
+    request('/api/v1/admin/analytics', { token }),
+  wallets:   (token) =>
+    request('/api/v1/admin/wallets',   { token }),
+  partners:  (token) =>
+    request('/api/v1/admin/partners',  { token }),
+  riders:    (token) =>
+    request('/api/v1/admin/riders',    { token }),
+  cancelOrder: (id, reason, token) =>
+    request(`/api/v1/admin/orders/${id}/cancel`, { method: 'POST', body: { reason }, token }),
 };

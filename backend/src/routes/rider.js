@@ -1,6 +1,8 @@
 // Rider dispatch routes.
 // All routes require: valid JWT → RIDER role → active+approved Rider row.
 //
+// GET  /api/v1/rider/me                         → rider profile + isOnline status
+// POST /api/v1/rider/me/online                  → toggle isOnline { isOnline: boolean }
 // GET  /api/v1/rider/orders/available           → zone-scoped queue of READY_FOR_PICKUP orders
 // POST /api/v1/rider/orders/:id/accept          → assigns riderId only (status stays READY_FOR_PICKUP)
 // POST /api/v1/rider/orders/:id/verify-seal     → READY_FOR_PICKUP → OUT_FOR_DELIVERY (seal gate)
@@ -107,6 +109,53 @@ function assertTransition(current, allowedFrom, toStatus) {
     );
   }
 }
+
+// ─── GET /me — rider profile ──────────────────────────────────────────────────
+//
+// Returns { rider } with profile fields + isOnline status.
+
+router.get('/me', asyncH(async (req, res) => {
+  const rider = await prisma.rider.findUnique({
+    where:  { userId: req.user.id },
+    select: {
+      id:            true,
+      fullName:      true,
+      vehicleType:   true,
+      vehicleNumber: true,
+      zoneCode:      true,
+      isOnline:      true,
+      isActive:      true,
+      kycStatus:     true,
+      createdAt:     true,
+    },
+  });
+  res.json({ rider });
+}));
+
+// ─── POST /me/online — toggle online status ────────────────────────────────────
+//
+// Body: { isOnline: boolean }
+// Sets the rider's isOnline flag. Offline riders do not appear in the dispatch queue.
+
+router.post('/me/online', asyncH(async (req, res) => {
+  const { isOnline } = req.body || {};
+  if (typeof isOnline !== 'boolean') {
+    throw BadRequest('isOnline must be a boolean');
+  }
+
+  const rider = await prisma.rider.update({
+    where:  { userId: req.user.id },
+    data:   { isOnline, lastPingAt: new Date() },
+    select: {
+      id:          true,
+      fullName:    true,
+      vehicleType: true,
+      zoneCode:    true,
+      isOnline:    true,
+    },
+  });
+  res.json({ rider });
+}));
 
 // ─── GET /orders/available — zone-scoped dispatch queue ──────────────────────
 //

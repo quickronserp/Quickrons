@@ -57,6 +57,31 @@ export default function ProfileScreen({ navigation }) {
         />
         <Action icon="heart" color={colors.brand} title="Saved kitchens" />
         <Action icon="help-circle" color={colors.inkSoft} title="Help & support" />
+
+        {/* ── Operations Console — internal MVP testing ────────────── */}
+        <Text style={styles.section}>Operations Console</Text>
+        <Action
+          icon="storefront-outline"
+          color="#7C3AED"
+          title="Partner Kitchen"
+          desc="Accept orders · Prepare · Seal"
+          onPress={() => navigation.navigate('PartnerOps')}
+        />
+        <Action
+          icon="bicycle-outline"
+          color={colors.rider}
+          title="Rider Dispatch"
+          desc="Go online · Accept · Deliver"
+          onPress={() => navigation.navigate('RiderOps')}
+        />
+        <Action
+          icon="shield-checkmark-outline"
+          color={colors.ink}
+          title="Admin Console"
+          desc="Live orders · Analytics · Ops"
+          onPress={() => navigation.navigate('AdminOps')}
+        />
+
         <Action icon="log-out" color={colors.danger} title="Sign out" onPress={signOut} />
       </ScrollView>
     </SafeAreaView>

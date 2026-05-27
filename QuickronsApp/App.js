@@ -24,6 +24,9 @@ import RiderScreen             from './src/screens/RiderScreen';
 import ProfileScreen           from './src/screens/ProfileScreen';
 import LoginScreen             from './src/screens/LoginScreen';
 import OtpVerifyScreen         from './src/screens/OtpVerifyScreen';
+import PartnerOpsScreen        from './src/screens/PartnerOpsScreen';
+import RiderOpsScreen          from './src/screens/RiderOpsScreen';
+import AdminOpsScreen          from './src/screens/AdminOpsScreen';
 
 import { colors } from './src/theme';
 
@@ -120,6 +123,9 @@ function MainStack() {
       <Stack.Screen name="PartnerOnboarding" component={PartnerOnboardingScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="Profile"           component={ProfileScreen} />
       <Stack.Screen name="Rider"             component={RiderScreen} />
+      <Stack.Screen name="PartnerOps"        component={PartnerOpsScreen} />
+      <Stack.Screen name="RiderOps"          component={RiderOpsScreen} />
+      <Stack.Screen name="AdminOps"          component={AdminOpsScreen} />
     </Stack.Navigator>
   );
 }
