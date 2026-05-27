@@ -55,10 +55,10 @@ router.post('/verify-otp', asyncH(async (req, res) => {
   }
   await prisma.oTP.update({ where: { id: record.id }, data: { consumedAt: new Date() } });
 
-  // Upsert user.
+  // Upsert user. Never overwrite an existing role — PARTNER/RIDER/ADMIN are set by admin, not login.
   const user = await prisma.user.upsert({
     where:  { phone },
-    update: { role },
+    update: {},
     create: { phone, role },
   });
 
