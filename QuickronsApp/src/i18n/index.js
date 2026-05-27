@@ -21,7 +21,7 @@ function interpolate(template, vars) {
 
 const I18nContext = createContext(null);
 
-export function I18nProvider({ children, defaultLang = 'ml' }) {
+export function I18nProvider({ children, defaultLang = 'en' }) {
   const [lang, setLang] = useState(defaultLang);
 
   const t = useMemo(() => {

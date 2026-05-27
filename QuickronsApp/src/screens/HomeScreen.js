@@ -31,12 +31,14 @@ function QuickronsWordmark() {
   );
 }
 
-// Backend businessType → frontend filter segment
+// Backend businessType (PartnerCategory enum) → frontend filter segment
 const TYPE_TO_SEGMENT = {
-  FORRA_KITCHEN: 'forra',
-  HOME_MAKER:    'homeMaker',
-  HOTEL:         'hotel',
-  CATERER:       'caterer',
+  FORRA_KITCHEN:  'forra',
+  FORRA_SUPPLIER: 'forra',      // schema enum value
+  HOME_MAKER:     'homeMaker',
+  HOTEL:          'hotel',      // legacy alias kept for safety
+  RESTAURANT:     'hotel',      // actual schema enum value for hotel-style partners
+  CATERER:        'caterer',
 };
 
 const FILTER_IDS = ['all', 'forra', 'homeMaker', 'hotel', 'caterer'];

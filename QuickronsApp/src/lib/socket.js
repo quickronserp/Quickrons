@@ -26,6 +26,14 @@ const socketClient = {
   connect() {
     if (socket?.connected) return socket;
 
+    // If a socket instance exists but is disconnected, reconnect it rather than
+    // creating a new instance — creating a new io() while the old one is still
+    // referenced would leak all previously registered event listeners.
+    if (socket && !socket.connected) {
+      socket.connect();
+      return socket;
+    }
+
     socket = io(API_BASE, {
       // Polling can stall on React Native — WebSocket only.
       transports: ['websocket'],

@@ -14,17 +14,19 @@ const STATUS_TO_STAGE = {
   CONFIRMED:         1,
   PREPARING:         1,
   READY_FOR_PICKUP:  2,
+  PICKED_UP:         3, // schema status — rider collected the order
   OUT_FOR_DELIVERY:  3,
   DELIVERED:         4,
   CANCELLED:         4, // terminal — handled separately
+  FAILED:            4, // terminal
 };
 
 const STAGES = [
   { id: 'placed',    label: 'Order placed',         icon: 'checkmark-circle' },
-  { id: 'cooking',   label: 'Kitchen is cooking',   icon: 'restaurant' },
-  { id: 'sealed',    label: 'Sealed & ready',        icon: 'lock-closed' },
-  { id: 'enroute',   label: 'Rider en route',        icon: 'bicycle' },
-  { id: 'delivered', label: 'Delivered',             icon: 'home' },
+  { id: 'cooking',   label: 'Kitchen accepted',     icon: 'restaurant' },
+  { id: 'sealed',    label: 'Sealed & ready',       icon: 'lock-closed' },
+  { id: 'enroute',   label: 'Auto en route 🛺',     icon: 'car' },
+  { id: 'delivered', label: 'Delivered',            icon: 'home' },
 ];
 
 // Socket events that signal a status advance
@@ -209,7 +211,7 @@ export default function TrackingScreen({ route, navigation }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.riderName}>{rider.fullName || 'Your rider'}</Text>
-              <Text style={styles.riderMeta}>Quickrons rider</Text>
+              <Text style={styles.riderMeta}>Auto · Quickrons</Text>
             </View>
             <Pressable style={styles.callBtn}>
               <Ionicons name="call" size={18} color={colors.brand} />

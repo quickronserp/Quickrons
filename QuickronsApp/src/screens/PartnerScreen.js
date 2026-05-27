@@ -204,7 +204,7 @@ function MenuItemRow({ item, cartItems, onAdd }) {
             <View style={[menuStyles.vegInner, { backgroundColor: item.isVeg ? colors.success : '#C62828' }]} />
           </View>
           <Text style={menuStyles.name}>{item.name}</Text>
-          {item.isSignature && (
+          {item.signature && (
             <Ionicons name="star" size={12} color={colors.accent} />
           )}
         </View>
