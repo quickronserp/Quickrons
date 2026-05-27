@@ -78,7 +78,19 @@ export default function PartnerOpsScreen({ navigation }) {
     return () => clearInterval(pollRef.current);
   }, [fetchOrders]);
 
-  // Socket: join partner room and invalidate on any order event
+  // Fetch partner profile once to get Partner model ID for socket room join
+  useEffect(() => {
+    partnerApi.me(accessToken)
+      .then(r => {
+        if (r?.partner?.id) {
+          socketClient.connect();
+          socketClient.joinPartner(r.partner.id);
+        }
+      })
+      .catch(() => {/* not blocking — polling covers it */});
+  }, [accessToken]);
+
+  // Socket: listen for any order event on the partner room
   useEffect(() => {
     socketClient.connect();
     const refresh = () => fetchOrders(true);

@@ -4,11 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
+import { useI18n } from '../i18n';
 import { colors, radii, space, segmentMeta } from '../theme';
 
 export default function ProfileScreen({ navigation }) {
   const { isPlus } = useCart();
   const { user, signOut } = useAuth();
+  const { lang, setLang } = useI18n();
 
   const displayName = user?.name  || user?.fullName || '';
   const phone       = user?.phone || '';
@@ -57,6 +59,13 @@ export default function ProfileScreen({ navigation }) {
         />
         <Action icon="heart" color={colors.brand} title="Saved kitchens" />
         <Action icon="help-circle" color={colors.inkSoft} title="Help & support" />
+        <Action
+          icon="language"
+          color={colors.caterer}
+          title={lang === 'en' ? 'Switch to Malayalam' : 'Switch to English'}
+          desc={lang === 'en' ? 'ഭാഷ മാറ്റാം' : 'Change app language'}
+          onPress={() => setLang(lang === 'en' ? 'ml' : 'en')}
+        />
 
         {/* ── Operations Console — internal MVP testing ────────────── */}
         <Text style={styles.section}>Operations Console</Text>

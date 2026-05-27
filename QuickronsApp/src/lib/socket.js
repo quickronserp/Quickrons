@@ -82,6 +82,22 @@ const socketClient = {
     socket.emit('join:customer', { customerId });
   },
 
+  // Join the partner kitchen room to receive live order events.
+  // partnerId = Partner model ID (from /api/v1/partner/me or order.partnerId).
+  joinPartner(partnerId) {
+    if (!partnerId) return;
+    this._ensureConnected();
+    socket.emit('join:partner', { partnerId });
+  },
+
+  // Join the rider room to receive live dispatch events.
+  // riderId = Rider model ID (from /api/v1/rider/me → rider.id).
+  joinRider(riderId) {
+    if (!riderId) return;
+    this._ensureConnected();
+    socket.emit('join:rider', { riderId });
+  },
+
   on(event, handler) {
     this._ensureConnected();
     socket.on(event, handler);

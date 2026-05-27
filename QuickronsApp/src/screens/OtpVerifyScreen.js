@@ -162,8 +162,13 @@ const styles = StyleSheet.create({
 
   otpRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 28, gap: 8 },
   hiddenInput: {
-    position: 'absolute', opacity: 0, height: 1, width: 1,
-    ...(Platform.OS === 'web' ? { left: -9999 } : {}),
+    position: 'absolute', opacity: 0,
+    // On web: cover the full OTP row so focus() keeps input in-viewport and keystrokes register.
+    // On native: shrink to 1×1 invisible dot — keyboard attaches to the ref directly.
+    height: Platform.OS === 'web' ? '100%' : 1,
+    width:  Platform.OS === 'web' ? '100%' : 1,
+    top: 0, left: 0,
+    zIndex: Platform.OS === 'web' ? 1 : undefined,
   },
   otpBox: {
     flex: 1, height: 56, borderRadius: radii.md,

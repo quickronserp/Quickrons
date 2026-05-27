@@ -203,7 +203,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <I18nProvider defaultLang="ml">
+        <I18nProvider defaultLang="en">
           <AuthProvider>
             <CartProvider>
               <NavigationContainer>

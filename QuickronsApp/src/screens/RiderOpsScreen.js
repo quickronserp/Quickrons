@@ -89,7 +89,14 @@ export default function RiderOpsScreen({ navigation }) {
     return () => clearInterval(pollRef.current);
   }, [fetchAll]);
 
-  // Socket: join rider room
+  // Socket: join rider's own room once profile is loaded
+  useEffect(() => {
+    if (!profile?.id) return;
+    socketClient.connect();
+    socketClient.joinRider(profile.id);
+  }, [profile?.id]);
+
+  // Socket: listen for events relevant to this rider
   useEffect(() => {
     socketClient.connect();
     const refresh = () => fetchAll(true);
@@ -117,13 +124,27 @@ export default function RiderOpsScreen({ navigation }) {
     }
   }
 
-  async function doAction(orderId, actionFn) {
+  async function doAction(orderId, actionFn, { isDeliver = false } = {}) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       await actionFn();
       await fetchAll(true);
     } catch (e) {
-      Alert.alert('Error', e.message || 'Action failed');
+      const msg = e.message || 'Action failed';
+      // Give a more helpful message when delivery blocked by unverified customer code
+      if (isDeliver && (
+        msg.toLowerCase().includes('seal') ||
+        msg.toLowerCase().includes('customer') ||
+        msg.toLowerCase().includes('verif')
+      )) {
+        Alert.alert(
+          'Customer Must Verify First',
+          'Ask the customer to open their Quickrons app → My Orders → open this order → enter the 6-digit code from the sealed bag. Then tap Mark Delivered again.',
+          [{ text: 'Got it' }]
+        );
+      } else {
+        Alert.alert('Error', msg);
+      }
     } finally {
       setActionLoading(prev => ({ ...prev, [orderId]: false }));
     }
@@ -251,7 +272,8 @@ export default function RiderOpsScreen({ navigation }) {
                       { text: 'Not yet', style: 'cancel' },
                       { text: 'Yes, deliver',
                         onPress: () => doAction(order.id,
-                          () => riderOpsApi.delivered(order.id, accessToken))
+                          () => riderOpsApi.delivered(order.id, accessToken),
+                          { isDeliver: true })
                       },
                     ]
                   );

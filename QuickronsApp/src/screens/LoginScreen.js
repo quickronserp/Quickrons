@@ -207,7 +207,9 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row', alignItems: 'center', marginTop: 8,
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md,
-    overflow: 'hidden', backgroundColor: colors.bgAlt,
+    // overflow:hidden clips TextInput touch area on React Native Web — use visible on web
+    overflow: Platform.OS === 'web' ? 'visible' : 'hidden',
+    backgroundColor: colors.bgAlt,
   },
   inputRowActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
   prefix: {

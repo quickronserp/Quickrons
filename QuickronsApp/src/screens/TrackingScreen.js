@@ -183,22 +183,45 @@ export default function TrackingScreen({ route, navigation }) {
     }
   };
 
+  const isDelivered = status === 'DELIVERED';
+  const isFailed    = status === 'FAILED';
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <View style={styles.header}>
+        <Pressable
+          onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('HomeTab')}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        </Pressable>
         <Text style={styles.title}>Order #{orderNumber}</Text>
-        <Pressable onPress={() => navigation.navigate('HomeTab')}>
-          <Ionicons name="close" size={24} color={colors.ink} />
+        <Pressable onPress={() => navigation.navigate('HomeTab')} style={{ padding: 4 }}>
+          <Ionicons name="close" size={22} color={colors.ink} />
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg }}>
         {/* ETA card */}
-        <View style={styles.etaCard}>
-          <Text style={styles.etaLabel}>Estimated arrival</Text>
-          <Text style={styles.etaTime}>{etaMins}–{etaMins + 5} min</Text>
-          <Text style={styles.etaDesc}>{STAGES[stage].label}</Text>
-        </View>
+        {isDelivered ? (
+          <View style={[styles.etaCard, { backgroundColor: colors.success }]}>
+            <Text style={styles.etaLabel}>Order delivered ✓</Text>
+            <Text style={styles.etaTime}>Enjoy!</Text>
+            <Text style={styles.etaDesc}>Thank you for ordering with Quickrons</Text>
+          </View>
+        ) : isFailed ? (
+          <View style={[styles.etaCard, { backgroundColor: colors.danger }]}>
+            <Text style={styles.etaLabel}>Order failed</Text>
+            <Text style={styles.etaTime}>Sorry</Text>
+            <Text style={styles.etaDesc}>Something went wrong with this order</Text>
+          </View>
+        ) : (
+          <View style={styles.etaCard}>
+            <Text style={styles.etaLabel}>Estimated arrival</Text>
+            <Text style={styles.etaTime}>{etaMins}–{etaMins + 5} min</Text>
+            <Text style={styles.etaDesc}>{STAGES[Math.min(stage, STAGES.length - 1)].label}</Text>
+          </View>
+        )}
 
         {/* Progress stages */}
         <View style={styles.stages}>
@@ -316,10 +339,10 @@ export default function TrackingScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: space.lg, paddingVertical: space.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingHorizontal: space.md, paddingVertical: space.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border, gap: 8,
   },
-  title: { fontSize: 17, fontWeight: '800', color: colors.ink },
+  title: { fontSize: 16, fontWeight: '800', color: colors.ink, flex: 1, textAlign: 'center' },
   center: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.bg, gap: 12, padding: space.xl,

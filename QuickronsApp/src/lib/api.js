@@ -107,6 +107,8 @@ export const ordersApi = {
 // ─── Partner Ops ──────────────────────────────────────────────────────────────
 
 export const partnerApi = {
+  me: (token) =>
+    request('/api/v1/partner/me', { token }),
   orders: (token, status) => {
     const qs = status ? `?status=${status}&limit=50` : '?limit=50';
     return request(`/api/v1/partner/orders${qs}`, { token });

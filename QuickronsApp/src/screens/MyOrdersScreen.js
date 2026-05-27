@@ -13,6 +13,7 @@ const STATUS_LABEL = {
   PREPARING:        'Preparing',
   READY_FOR_PICKUP: 'Ready for pickup',
   OUT_FOR_DELIVERY: 'On the way',
+  PICKED_UP:        'Rider arrived',
   DELIVERED:        'Delivered',
   CANCELLED:        'Cancelled',
   FAILED:           'Failed',
@@ -24,13 +25,15 @@ const STATUS_COLOR = {
   PREPARING:        '#F59E0B',
   READY_FOR_PICKUP: '#F59E0B',
   OUT_FOR_DELIVERY: '#3B82F6',
+  PICKED_UP:        '#7C3AED',
   DELIVERED:        colors.success,
   CANCELLED:        colors.danger,
   FAILED:           colors.danger,
 };
 
+// Orders in these statuses show a branded active border + "Track order" link
 const ACTIVE_STATUSES = new Set([
-  'PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY',
+  'PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'OUT_FOR_DELIVERY', 'PICKED_UP',
 ]);
 
 export default function MyOrdersScreen({ navigation }) {
@@ -94,11 +97,7 @@ export default function MyOrdersScreen({ navigation }) {
           renderItem={({ item }) => (
             <OrderCard
               order={item}
-              onPress={() =>
-                ACTIVE_STATUSES.has(item.status)
-                  ? navigation.navigate('Tracking', { orderId: item.id })
-                  : null
-              }
+              onPress={() => navigation.navigate('Tracking', { orderId: item.id })}
             />
           )}
         />
@@ -162,12 +161,12 @@ function OrderCard({ order, onPress }) {
         {totalRupees != null ? (
           <Text style={styles.totalTxt}>₹{totalRupees}</Text>
         ) : null}
-        {isActive && (
-          <View style={styles.trackRow}>
-            <Text style={styles.trackTxt}>Track order</Text>
-            <Ionicons name="arrow-forward" size={14} color={colors.brand} />
-          </View>
-        )}
+        <View style={styles.trackRow}>
+          <Text style={styles.trackTxt}>
+            {isActive ? 'Track order' : 'View details'}
+          </Text>
+          <Ionicons name="arrow-forward" size={14} color={colors.brand} />
+        </View>
       </View>
     </Pressable>
   );
