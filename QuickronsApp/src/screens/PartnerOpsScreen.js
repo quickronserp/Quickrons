@@ -37,7 +37,7 @@ function paise(p) {
 }
 
 export default function PartnerOpsScreen({ navigation }) {
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, signOut } = useAuth();
   const [tab, setTab] = useState('active');       // 'active' | 'done'
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -227,9 +227,14 @@ export default function PartnerOpsScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
-        </Pressable>
+        {navigation.canGoBack()
+          ? <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+              <Ionicons name="arrow-back" size={22} color={colors.ink} />
+            </Pressable>
+          : <Pressable onPress={signOut} style={styles.back}>
+              <Ionicons name="log-out-outline" size={22} color={colors.danger} />
+            </Pressable>
+        }
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Partner Kitchen</Text>
           <Text style={styles.subtitle}>

@@ -39,7 +39,7 @@ function paise(p) {
 }
 
 export default function AdminOpsScreen({ navigation }) {
-  const { accessToken } = useAuth();
+  const { accessToken, signOut } = useAuth();
   const [tab, setTab]             = useState('orders');
   const [orders, setOrders]       = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -268,9 +268,14 @@ export default function AdminOpsScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-          <Ionicons name="arrow-back" size={22} color={colors.ink} />
-        </Pressable>
+        {navigation.canGoBack()
+          ? <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+              <Ionicons name="arrow-back" size={22} color={colors.ink} />
+            </Pressable>
+          : <Pressable onPress={signOut} style={styles.back}>
+              <Ionicons name="log-out-outline" size={22} color={colors.danger} />
+            </Pressable>
+        }
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Admin Console</Text>
           <Text style={styles.subtitle}>Quickrons Operations</Text>

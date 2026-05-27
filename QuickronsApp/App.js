@@ -130,7 +130,32 @@ function MainStack() {
   );
 }
 
-// ─── Root: pick AuthStack vs MainStack based on session ──────────────────
+// ─── Role-specific root stacks ────────────────────────────────────────────
+function PartnerStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="PartnerOps" component={PartnerOpsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function RiderStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="RiderOps" component={RiderOpsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AdminStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AdminOps" component={AdminOpsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+// ─── Root: pick stack based on role ──────────────────────────────────────
 function RootNavigator() {
   const { isAuthenticated, bootstrapping, accessToken, user, signOut } = useAuth();
 
@@ -155,15 +180,21 @@ function RootNavigator() {
       isAuthenticated,
       hasToken: !!accessToken,
       userPhone: user?.phone,
+      userRole: user?.role,
     });
   }
 
   if (bootstrapping) return <BootSplash />;
+  if (!isAuthenticated) return <AuthStack key="auth" />;
 
-  // Separate components + key prop = clean unmount/remount on auth flip.
-  return isAuthenticated
-    ? <MainStack key="main" />
-    : <AuthStack key="auth" />;
+  // Route by role — non-customer roles get their own root stack (no tabs, no cart).
+  const role = user?.role;
+  if (role === 'PARTNER') return <PartnerStack key="partner" />;
+  if (role === 'RIDER')   return <RiderStack   key="rider"   />;
+  if (role === 'ADMIN')   return <AdminStack   key="admin"   />;
+
+  // Default: CUSTOMER
+  return <MainStack key="main" />;
 }
 
 // ─── App entry — provider order matters ──────────────────────────────────
