@@ -1,15 +1,19 @@
 // Quickrons — Phase 2 MVP seed
 //
-// Idempotent. Safe to re-run. All upserts keyed by natural unique keys.
+// Idempotent. Safe to re-run.
 //
-// Partners:
-//   1. Fathima's Kitchen      — HOME_MAKER
-//   2. Malabar Hotel          — RESTAURANT
-//   3. Forra Catering         — CATERER
-//   4. Ammu's Homely Meals    — HOME_MAKER
-//   5. Perinthalmanna Grill House — RESTAURANT
+// Partner login phones (must match exactly):
+//   Fathima's Kitchen          → 9876543211
+//   Malabar Hotel              → 9876543221
+//   Ammu's Homely Meals        → 9876543222
+//   Forra Catering             → 9876543223
+//   Perinthalmanna Grill House → 9876543224
 //
-// Riders: Rajan K, Shafi P, Navas M
+// Partner upsert strategy: find by `brand` (unique in dev), then update
+// `userId` + all other fields. This correctly re-links the Partner row even
+// if the owner phone changed between seed runs (avoids orphaned rows).
+//
+// Riders: Rajan K (9876543212), Shafi P (9876543217), Navas M (9876543218)
 //
 // Run:  npm run seed   (or)   node prisma/seed.js
 
@@ -17,44 +21,47 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// ─── Constants ───���───────────────────────────────────────────────────────────
+// ─── Zones ────────────────────────────────────────────────────────────────────
 
 const ZONES = [
   {
-    code: 'perinthalmanna',
-    nameEn: 'Perinthalmanna',
-    nameMl: 'പെരിന്തൽമണ്ണ',
-    district: 'Malappuram',
-    pincodes: ['679322', '679323', '679325', '679340'],
-    isActive: true,
-    centerLat: '10.9760000',
-    centerLng: '76.2270000',
-    radiusKm: '6.00',
+    code:       'perinthalmanna',
+    nameEn:     'Perinthalmanna',
+    nameMl:     'പെരിന്തൽമണ്ണ',
+    district:   'Malappuram',
+    pincodes:   ['679322', '679323', '679325', '679340'],
+    isActive:   true,
+    centerLat:  '10.9760000',
+    centerLng:  '76.2270000',
+    radiusKm:   '6.00',
     launchedAt: new Date(),
   },
 ];
 
 // ─── Users ────────────────────────────────────────────────────────────────────
-// phone MUST be unique. Partners/Riders need their own User rows.
+// Every partner and rider needs a User row whose phone is the login phone.
+// Upsert key: phone (unique on User table).
 
 const USERS = [
   // Customer
-  { phone: '9876543210', name: 'Test Customer',         role: 'CUSTOMER' },
-  // Partner owners
-  { phone: '9876543211', name: 'Fathima',               role: 'PARTNER'  },
-  { phone: '9876543213', name: 'Basheer Malabar Hotel', role: 'PARTNER'  },
-  { phone: '9876543214', name: 'Forra Catering Mgr',   role: 'PARTNER'  },
-  { phone: '9876543215', name: 'Ammu',                  role: 'PARTNER'  },
-  { phone: '9876543216', name: 'Grill House Mgr',       role: 'PARTNER'  },
+  { phone: '9876543210', name: 'Test Customer',              role: 'CUSTOMER' },
+  // Partners — phones MUST match the required login phones below
+  { phone: '9876543211', name: 'Fathima',                    role: 'PARTNER'  },
+  { phone: '9876543221', name: 'Malabar Hotel Owner',        role: 'PARTNER'  },
+  { phone: '9876543222', name: 'Ammu',                       role: 'PARTNER'  },
+  { phone: '9876543223', name: 'Forra Catering Manager',     role: 'PARTNER'  },
+  { phone: '9876543224', name: 'Grill House Manager',        role: 'PARTNER'  },
   // Riders
-  { phone: '9876543212', name: 'Rajan K',               role: 'RIDER'    },
-  { phone: '9876543217', name: 'Shafi P',               role: 'RIDER'    },
-  { phone: '9876543218', name: 'Navas M',               role: 'RIDER'    },
+  { phone: '9876543212', name: 'Rajan K',                    role: 'RIDER'    },
+  { phone: '9876543217', name: 'Shafi P',                    role: 'RIDER'    },
+  { phone: '9876543218', name: 'Navas M',                    role: 'RIDER'    },
   // Admin
-  { phone: '9876543219', name: 'Quickrons Admin',       role: 'ADMIN'    },
+  { phone: '9876543219', name: 'Quickrons Admin',            role: 'ADMIN'    },
 ];
 
 // ─── Partners ─────────────────────────────────────────────────────────────────
+// `phone` must match the USERS entry above — used to look up the User.id.
+// `brand` is used as the find-by key for upsert (unique in dev).
 
 const PARTNERS = [
   {
@@ -66,7 +73,7 @@ const PARTNERS = [
     fssaiNumber:   'FSSAI-DEV-FATHIMA',
   },
   {
-    phone:         '9876543213',
+    phone:         '9876543221',
     brand:         'Malabar Hotel',
     ownerName:     'Basheer',
     category:      'RESTAURANT',
@@ -74,15 +81,7 @@ const PARTNERS = [
     fssaiNumber:   'FSSAI-DEV-MALABAR',
   },
   {
-    phone:         '9876543214',
-    brand:         'Forra Catering',
-    ownerName:     'Forra Catering Manager',
-    category:      'CATERER',
-    commissionBps: 1200,
-    fssaiNumber:   'FSSAI-DEV-FORRA',
-  },
-  {
-    phone:         '9876543215',
+    phone:         '9876543222',
     brand:         "Ammu's Homely Meals",
     ownerName:     'Ammu',
     category:      'HOME_MAKER',
@@ -90,7 +89,15 @@ const PARTNERS = [
     fssaiNumber:   'FSSAI-DEV-AMMU',
   },
   {
-    phone:         '9876543216',
+    phone:         '9876543223',
+    brand:         'Forra Catering',
+    ownerName:     'Forra Catering Manager',
+    category:      'CATERER',
+    commissionBps: 1200,
+    fssaiNumber:   'FSSAI-DEV-FORRA',
+  },
+  {
+    phone:         '9876543224',
     brand:         'Perinthalmanna Grill House',
     ownerName:     'Grill House Manager',
     category:      'RESTAURANT',
@@ -99,225 +106,215 @@ const PARTNERS = [
   },
 ];
 
-// ─── Riders ────���──────────────────────────────────────────────────────────────
+// ─── Riders ───────────────────────────────────────────────────────────────────
 
 const RIDERS = [
-  {
-    phone:         '9876543212',
-    fullName:      'Rajan K',
-    vehicleType:   'BIKE',
-    vehicleNumber: 'KL-55-AB-2421',
-  },
-  {
-    phone:         '9876543217',
-    fullName:      'Shafi P',
-    vehicleType:   'BIKE',
-    vehicleNumber: 'KL-10-CJ-5533',
-  },
-  {
-    phone:         '9876543218',
-    fullName:      'Navas M',
-    vehicleType:   'BIKE',
-    vehicleNumber: 'KL-55-BZ-7890',
-  },
+  { phone: '9876543212', fullName: 'Rajan K',  vehicleType: 'BIKE', vehicleNumber: 'KL-55-AB-2421' },
+  { phone: '9876543217', fullName: 'Shafi P',  vehicleType: 'BIKE', vehicleNumber: 'KL-10-CJ-5533' },
+  { phone: '9876543218', fullName: 'Navas M',  vehicleType: 'BIKE', vehicleNumber: 'KL-55-BZ-7890' },
 ];
 
-// ─── Menus — keyed by partner phone ──��───────────────────────────────────────
+// ─── Menus — keyed by partner phone ──────────────────────────────────────────
 
 const MENUS = {
+  // Fathima's Kitchen
   '9876543211': [
     {
-      name:        'Thalassery Chicken Biryani',
+      name: 'Thalassery Chicken Biryani',
       description: 'Kaima rice, slow-cooked Malabar masala, raita & lemon pickle.',
-      pricePaise:  22900, isVeg: false, signature: true,  sortOrder: 1,
-      category:    'biryani',
+      pricePaise: 22900, isVeg: false, signature: true,  sortOrder: 1,
+      category: 'biryani',
       dailyQuantityLimit: 40, dailyQuantityRemaining: 40,
       servingStartMinutes: 11 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Beef Fry + Parotta',
+      name: 'Beef Fry + Parotta',
       description: 'Slow-roasted beef pieces with two layered Malabar parottas.',
-      pricePaise:  18900, isVeg: false, signature: false, sortOrder: 2,
-      category:    'mains',
+      pricePaise: 18900, isVeg: false, signature: false, sortOrder: 2,
+      category: 'mains',
       dailyQuantityLimit: 60, dailyQuantityRemaining: 60,
       servingStartMinutes: 12 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Kerala Sadhya (Mini)',
+      name: 'Kerala Sadhya (Mini)',
       description: '12-item banana-leaf veg meal in eco-friendly container.',
-      pricePaise:  19900, isVeg: true,  signature: false, sortOrder: 3,
-      category:    'mains',
+      pricePaise: 19900, isVeg: true, signature: false, sortOrder: 3,
+      category: 'mains',
       dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
       servingStartMinutes: 12 * 60, servingEndMinutes: 15 * 60,
     },
     {
-      name:        'Puttu + Kadala Curry',
+      name: 'Puttu + Kadala Curry',
       description: 'Steamed rice puttu with black chana curry. Breakfast staple.',
-      pricePaise:   7900, isVeg: true,  signature: false, sortOrder: 4,
-      category:    'breakfast',
+      pricePaise: 7900, isVeg: true, signature: false, sortOrder: 4,
+      category: 'breakfast',
       dailyQuantityLimit: 80, dailyQuantityRemaining: 80,
-      servingStartMinutes:  7 * 60, servingEndMinutes: 10 * 60 + 30,
+      servingStartMinutes: 7 * 60, servingEndMinutes: 10 * 60 + 30,
     },
     {
-      name:        'Malabar Fish Curry Meals',
+      name: 'Malabar Fish Curry Meals',
       description: 'Red fish curry, rice, thoran, pappadam — daily fresh.',
-      pricePaise:  16900, isVeg: false, signature: true,  sortOrder: 5,
-      category:    'mains',
+      pricePaise: 16900, isVeg: false, signature: true, sortOrder: 5,
+      category: 'mains',
       dailyQuantityLimit: 40, dailyQuantityRemaining: 40,
       servingStartMinutes: 12 * 60, servingEndMinutes: 15 * 60,
     },
   ],
 
-  '9876543213': [
+  // Malabar Hotel
+  '9876543221': [
     {
-      name:        'Malabar Chicken Curry Meals',
+      name: 'Malabar Chicken Curry Meals',
       description: 'Fragrant chicken curry, steamed rice, papad & pickle. Hotel-style plate.',
-      pricePaise:  17900, isVeg: false, signature: true,  sortOrder: 1,
-      category:    'mains',
+      pricePaise: 17900, isVeg: false, signature: true, sortOrder: 1,
+      category: 'mains',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 11 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Mutton Biryani (Hotel Style)',
+      name: 'Mutton Biryani (Hotel Style)',
       description: 'Dum-cooked mutton biryani with hotel gravy & raita.',
-      pricePaise:  27900, isVeg: false, signature: true,  sortOrder: 2,
-      category:    'biryani',
+      pricePaise: 27900, isVeg: false, signature: true, sortOrder: 2,
+      category: 'biryani',
       dailyQuantityLimit: 50, dailyQuantityRemaining: 50,
       servingStartMinutes: 12 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Porotta + Chicken Roast',
+      name: 'Porotta + Chicken Roast',
       description: 'Crispy-layered Malabar porotta with spicy dry chicken roast.',
-      pricePaise:  17900, isVeg: false, signature: false, sortOrder: 3,
-      category:    'mains',
+      pricePaise: 17900, isVeg: false, signature: false, sortOrder: 3,
+      category: 'mains',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 11 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Veg Meals',
+      name: 'Veg Meals',
       description: 'Rice, sambar, avial, thoran, pickle & papad.',
-      pricePaise:  10900, isVeg: true,  signature: false, sortOrder: 4,
-      category:    'mains',
+      pricePaise: 10900, isVeg: true, signature: false, sortOrder: 4,
+      category: 'mains',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 11 * 60, servingEndMinutes: 15 * 60,
     },
     {
-      name:        'Idiyappam + Egg Curry',
+      name: 'Idiyappam + Egg Curry',
       description: 'Soft rice noodles with creamy coconut egg curry.',
-      pricePaise:   9900, isVeg: false, signature: false, sortOrder: 5,
-      category:    'breakfast',
+      pricePaise: 9900, isVeg: false, signature: false, sortOrder: 5,
+      category: 'breakfast',
       dailyQuantityLimit: 60, dailyQuantityRemaining: 60,
-      servingStartMinutes:  7 * 60, servingEndMinutes: 11 * 60,
+      servingStartMinutes: 7 * 60, servingEndMinutes: 11 * 60,
     },
   ],
 
-  '9876543214': [
+  // Ammu's Homely Meals
+  '9876543222': [
     {
-      name:        'Party Pack Biryani (10 pax)',
-      description: 'Fragrant Malabar chicken biryani packed for events. 10-person serving.',
-      pricePaise:  199000, isVeg: false, signature: true,  sortOrder: 1,
-      category:    'catering',
-      dailyQuantityLimit: 20, dailyQuantityRemaining: 20,
-      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
-    },
-    {
-      name:        'Sadhya Catering (20 pax)',
-      description: 'Full Kerala sadya delivered for weddings & functions. 20-person pack.',
-      pricePaise:  350000, isVeg: true,  signature: true,  sortOrder: 2,
-      category:    'catering',
-      dailyQuantityLimit: 10, dailyQuantityRemaining: 10,
-      servingStartMinutes:  9 * 60, servingEndMinutes: 14 * 60,
-    },
-    {
-      name:        'Snack Box (Samosa + Tea)',
-      description: 'Box of 6 crispy samosas and a flask of ginger tea. Great for meetings.',
-      pricePaise:  18900, isVeg: true,  signature: false, sortOrder: 3,
-      category:    'snacks',
-      dailyQuantityLimit: null, dailyQuantityRemaining: null,
-      servingStartMinutes:  9 * 60, servingEndMinutes: 18 * 60,
-    },
-    {
-      name:        'Beef Roast Pack (1 kg)',
-      description: 'Dry Kerala beef roast, 1 kg. Party-ready, tamper sealed.',
-      pricePaise:  55000, isVeg: false, signature: false, sortOrder: 4,
-      category:    'catering',
-      dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
-      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
-    },
-  ],
-
-  '9876543215': [
-    {
-      name:        "Ammu's Fish Curry Meals",
+      name: "Ammu's Fish Curry Meals",
       description: 'Home-style red fish curry with rice, chammanthi & pickle.',
-      pricePaise:  15900, isVeg: false, signature: true,  sortOrder: 1,
-      category:    'mains',
+      pricePaise: 15900, isVeg: false, signature: true, sortOrder: 1,
+      category: 'mains',
       dailyQuantityLimit: 25, dailyQuantityRemaining: 25,
       servingStartMinutes: 12 * 60, servingEndMinutes: 15 * 60,
     },
     {
-      name:        'Thatta Idli + Chutney',
+      name: 'Thatta Idli + Chutney',
       description: 'Thick Malabar-style idli with coconut chutney and sambar.',
-      pricePaise:   7500, isVeg: true,  signature: false, sortOrder: 2,
-      category:    'breakfast',
+      pricePaise: 7500, isVeg: true, signature: false, sortOrder: 2,
+      category: 'breakfast',
       dailyQuantityLimit: 40, dailyQuantityRemaining: 40,
-      servingStartMinutes:  7 * 60, servingEndMinutes: 10 * 60 + 30,
+      servingStartMinutes: 7 * 60, servingEndMinutes: 10 * 60 + 30,
     },
     {
-      name:        'Chicken Stew + Appam',
+      name: 'Chicken Stew + Appam',
       description: 'Light coconut milk chicken stew with two soft appams.',
-      pricePaise:  14900, isVeg: false, signature: false, sortOrder: 3,
-      category:    'mains',
+      pricePaise: 14900, isVeg: false, signature: false, sortOrder: 3,
+      category: 'mains',
       dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
       servingStartMinutes: 18 * 60, servingEndMinutes: 21 * 60,
     },
   ],
 
-  '9876543216': [
+  // Forra Catering
+  '9876543223': [
     {
-      name:        'Smoky Beef Shawarma',
+      name: 'Party Pack Biryani (10 pax)',
+      description: 'Fragrant Malabar chicken biryani packed for events. 10-person serving.',
+      pricePaise: 199000, isVeg: false, signature: true, sortOrder: 1,
+      category: 'catering',
+      dailyQuantityLimit: 20, dailyQuantityRemaining: 20,
+      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
+    },
+    {
+      name: 'Sadhya Catering (20 pax)',
+      description: 'Full Kerala sadya delivered for weddings & functions. 20-person pack.',
+      pricePaise: 350000, isVeg: true, signature: true, sortOrder: 2,
+      category: 'catering',
+      dailyQuantityLimit: 10, dailyQuantityRemaining: 10,
+      servingStartMinutes: 9 * 60, servingEndMinutes: 14 * 60,
+    },
+    {
+      name: 'Snack Box (Samosa + Tea)',
+      description: 'Box of 6 crispy samosas and a flask of ginger tea.',
+      pricePaise: 18900, isVeg: true, signature: false, sortOrder: 3,
+      category: 'snacks',
+      dailyQuantityLimit: null, dailyQuantityRemaining: null,
+      servingStartMinutes: 9 * 60, servingEndMinutes: 18 * 60,
+    },
+    {
+      name: 'Beef Roast Pack (1 kg)',
+      description: 'Dry Kerala beef roast, 1 kg. Party-ready, tamper sealed.',
+      pricePaise: 55000, isVeg: false, signature: false, sortOrder: 4,
+      category: 'catering',
+      dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
+      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
+    },
+  ],
+
+  // Perinthalmanna Grill House
+  '9876543224': [
+    {
+      name: 'Smoky Beef Shawarma',
       description: 'Grilled beef strips, lavash wrap, garlic sauce. Perinthalmanna classic.',
-      pricePaise:  12900, isVeg: false, signature: true,  sortOrder: 1,
-      category:    'snacks',
+      pricePaise: 12900, isVeg: false, signature: true, sortOrder: 1,
+      category: 'snacks',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 11 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Grilled Chicken Platter',
+      name: 'Grilled Chicken Platter',
       description: '¼ chicken marinated in Kerala spices, served with raita and bread.',
-      pricePaise:  22900, isVeg: false, signature: true,  sortOrder: 2,
-      category:    'mains',
+      pricePaise: 22900, isVeg: false, signature: true, sortOrder: 2,
+      category: 'mains',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 12 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Grilled Fish Fry',
+      name: 'Grilled Fish Fry',
       description: 'Whole Karimeen (pearl spot) marinated in Malabar spices, grilled to order.',
-      pricePaise:  26900, isVeg: false, signature: false, sortOrder: 3,
-      category:    'mains',
+      pricePaise: 26900, isVeg: false, signature: false, sortOrder: 3,
+      category: 'mains',
       dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
       servingStartMinutes: 12 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Veg Grill Box',
+      name: 'Veg Grill Box',
       description: 'Grilled paneer, mushroom & capsicum with garlic bread.',
-      pricePaise:  17900, isVeg: true,  signature: false, sortOrder: 4,
-      category:    'mains',
+      pricePaise: 17900, isVeg: true, signature: false, sortOrder: 4,
+      category: 'mains',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 12 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name:        'Chips + Dip Combo',
+      name: 'Chips + Dip Combo',
       description: 'House-made banana chips with tomato chutney dip.',
-      pricePaise:   4900, isVeg: true,  signature: false, sortOrder: 5,
-      category:    'snacks',
+      pricePaise: 4900, isVeg: true, signature: false, sortOrder: 5,
+      category: 'snacks',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
       servingStartMinutes: 11 * 60, servingEndMinutes: 22 * 60,
     },
   ],
 };
 
-// ─── Seed ───────────���──────────────────────────��─────────────────────────────
+// ─── Seed ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   // 1. Zones
@@ -331,7 +328,7 @@ async function main() {
   }
   console.log(`  ✓ ${ZONES.length} zone(s)`);
 
-  // 2. Users
+  // 2. Users — upsert by phone
   console.log('[seed] users…');
   const userByPhone = {};
   for (const u of USERS) {
@@ -371,76 +368,80 @@ async function main() {
   const address = existingAddr
     ? await prisma.address.update({ where: { id: existingAddr.id }, data: addrPayload })
     : await prisma.address.create({ data: addrPayload });
-  console.log(`  ✓ address ${address.id}`);
 
-  // 4. Link customer default address
   if (customer.defaultAddressId !== address.id) {
     await prisma.user.update({
       where: { id: customer.id },
       data:  { defaultAddressId: address.id },
     });
   }
-  console.log('  ✓ customer.defaultAddressId linked');
+  console.log(`  ✓ address ${address.id} linked to customer`);
 
-  // 5. Partners
+  // 4. Partners
+  // ── Upsert strategy ────────────────────────────────────────────────────────
+  // We look up the Partner by `brand` (naturally unique in dev) rather than
+  // by `userId`. This lets us update the `userId` field if the owner phone
+  // changed between seed runs (e.g. 9876543213 → 9876543221), preventing the
+  // "no partner profile linked" error on the PARTNER login flow.
+  // ──────────────────────────────────────────────────────────────────────────
   console.log('[seed] partners…');
-  const partnerById = {};
+  const partnerByPhone = {};
+
   for (const p of PARTNERS) {
     const owner = userByPhone[p.phone];
-    const partner = await prisma.partner.upsert({
-      where:  { userId: owner.id },
-      update: {
-        brand:         p.brand,
-        ownerName:     p.ownerName,
-        category:      p.category,
-        kycStatus:     'APPROVED',
-        isActive:      true,
-        zoneCode:      'perinthalmanna',
-        commissionBps: p.commissionBps,
-        fssaiNumber:   p.fssaiNumber,
-      },
-      create: {
-        userId:        owner.id,
-        brand:         p.brand,
-        ownerName:     p.ownerName,
-        category:      p.category,
-        kycStatus:     'APPROVED',
-        isActive:      true,
-        zoneCode:      'perinthalmanna',
-        commissionBps: p.commissionBps,
-        fssaiNumber:   p.fssaiNumber,
-      },
-    });
-    partnerById[p.phone] = partner;
-    console.log(`    ✓ ${partner.brand}`);
+
+    const partnerData = {
+      userId:        owner.id,        // ← re-links to correct User on every run
+      brand:         p.brand,
+      ownerName:     p.ownerName,
+      category:      p.category,
+      kycStatus:     'APPROVED',
+      isActive:      true,
+      zoneCode:      'perinthalmanna',
+      commissionBps: p.commissionBps,
+      fssaiNumber:   p.fssaiNumber,
+    };
+
+    // Find existing partner by brand first.
+    const existing = await prisma.partner.findFirst({ where: { brand: p.brand } });
+
+    let partner;
+    if (existing) {
+      partner = await prisma.partner.update({
+        where: { id: existing.id },
+        data:  partnerData,
+      });
+    } else {
+      partner = await prisma.partner.create({ data: partnerData });
+    }
+
+    partnerByPhone[p.phone] = partner;
+    console.log(`    ✓ ${partner.brand}  (userId=${owner.id}  phone=${p.phone})`);
   }
 
-  // 6. Riders
+  // 5. Riders
   console.log('[seed] riders…');
   for (const r of RIDERS) {
     const owner = userByPhone[r.phone];
+
+    const riderData = {
+      userId:        owner.id,
+      fullName:      r.fullName,
+      vehicleType:   r.vehicleType,
+      vehicleNumber: r.vehicleNumber,
+      kycStatus:     'APPROVED',
+      isActive:      true,
+      isOnline:      false,
+      zoneCode:      'perinthalmanna',
+    };
+
+    // Rider upsert is keyed by userId — phones haven't changed for riders.
     const rider = await prisma.rider.upsert({
       where:  { userId: owner.id },
-      update: {
-        fullName:      r.fullName,
-        vehicleType:   r.vehicleType,
-        vehicleNumber: r.vehicleNumber,
-        kycStatus:     'APPROVED',
-        isActive:      true,
-        isOnline:      false,
-        zoneCode:      'perinthalmanna',
-      },
-      create: {
-        userId:        owner.id,
-        fullName:      r.fullName,
-        vehicleType:   r.vehicleType,
-        vehicleNumber: r.vehicleNumber,
-        kycStatus:     'APPROVED',
-        isActive:      true,
-        isOnline:      false,
-        zoneCode:      'perinthalmanna',
-      },
+      update: riderData,
+      create: riderData,
     });
+
     console.log(`    ✓ rider ${rider.fullName}`);
 
     // Rider wallet
@@ -461,10 +462,10 @@ async function main() {
   }
   console.log(`  ✓ ${RIDERS.length} riders with wallets`);
 
-  // 7. Partner wallets
+  // 6. Partner wallets
   console.log('[seed] partner wallets…');
   for (const p of PARTNERS) {
-    const partner = partnerById[p.phone];
+    const partner = partnerByPhone[p.phone];
     await prisma.wallet.upsert({
       where:  { partnerId: partner.id },
       update: { ownerType: 'PARTNER', riderId: null, currency: 'INR' },
@@ -482,12 +483,13 @@ async function main() {
   }
   console.log('  ✓ partner wallets');
 
-  // 8. Menu items per partner
+  // 7. Menu items — find by (partnerId, name), update or create
   console.log('[seed] menu items…');
   let totalItems = 0;
   for (const [phone, menuList] of Object.entries(MENUS)) {
-    const partner = partnerById[phone];
+    const partner = partnerByPhone[phone];
     if (!partner) { console.warn(`  ! no partner for phone ${phone} — skipping`); continue; }
+
     for (const m of menuList) {
       const data = {
         partnerId:              partner.id,
@@ -505,6 +507,7 @@ async function main() {
         servingEndMinutes:      m.servingEndMinutes,
         lastResetAt:            new Date(),
       };
+
       const existing = await prisma.menuItem.findFirst({
         where: { partnerId: partner.id, name: m.name },
       });
@@ -519,7 +522,21 @@ async function main() {
   }
   console.log(`  ✓ ${totalItems} menu items total`);
 
-  console.log('[seed] done.');
+  // 8. Verify — print partner → phone mapping for confirmation
+  console.log('\n[seed] ── Partner login verification ──────────────────────────────');
+  for (const p of PARTNERS) {
+    const owner   = userByPhone[p.phone];
+    const partner = partnerByPhone[p.phone];
+    // Re-fetch to confirm userId linkage is correct in DB
+    const dbPartner = await prisma.partner.findUnique({
+      where:  { id: partner.id },
+      select: { id: true, brand: true, userId: true, isActive: true, kycStatus: true },
+    });
+    const linked = dbPartner.userId === owner.id ? '✓ LINKED' : '✗ MISMATCH';
+    console.log(`  ${linked}  ${dbPartner.brand.padEnd(30)} login=${p.phone}  userId=${owner.id}`);
+  }
+
+  console.log('\n[seed] done.');
 }
 
 main()
