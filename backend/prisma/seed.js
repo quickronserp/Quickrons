@@ -111,7 +111,7 @@ const PARTNERS = [
 const RIDERS = [
   { phone: '9876543212', fullName: 'Rajan K',  vehicleType: 'BIKE', vehicleNumber: 'KL-55-AB-2421' },
   { phone: '9876543217', fullName: 'Shafi P',  vehicleType: 'BIKE', vehicleNumber: 'KL-10-CJ-5533' },
-  { phone: '9876543218', fullName: 'Navas M',  vehicleType: 'BIKE', vehicleNumber: 'KL-55-BZ-7890' },
+  { phone: '9876543218', fullName: 'Navas M',  vehicleType: 'AUTO', vehicleNumber: 'KL-55-BZ-7890' },
 ];
 
 // ─── Menus — keyed by partner phone ──────────────────────────────────────────

@@ -15,6 +15,7 @@ export default function RiderScreen() {
           <View>
             <Text style={styles.greet}>Hi, {RIDER_PROFILE.name.split(' ')[0]}</Text>
             <Text style={styles.zone}>{RIDER_PROFILE.zone}</Text>
+            <Text style={styles.vehicle}>🛺 {RIDER_PROFILE.vehicle}</Text>
           </View>
           <Pressable onPress={() => setOnline(!online)} style={[styles.statusBtn, online && styles.online]}>
             <View style={[styles.dot, online && { backgroundColor: '#fff' }]} />
@@ -126,6 +127,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   greet: { fontSize: 22, fontWeight: '800', color: colors.ink },
   zone: { fontSize: 13, color: colors.inkSoft, marginTop: 2 },
+  vehicle: { fontSize: 12, color: colors.inkMuted, marginTop: 2, fontWeight: '600' },
   statusBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.bg, paddingHorizontal: 14, paddingVertical: 8,

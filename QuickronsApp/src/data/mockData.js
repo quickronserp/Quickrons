@@ -173,7 +173,7 @@ export const RIDER_PROFILE = {
   todayEarnings: 780,
   todayDeliveries: 12,
   weeklyEarnings: 5450,
-  vehicle: 'Bajaj Pulsar — KL-55-AB-2421',
+  vehicle: 'Auto Rickshaw — KL-55-BZ-7890',
   shift: '11:00 AM — 9:00 PM',
 };
 
