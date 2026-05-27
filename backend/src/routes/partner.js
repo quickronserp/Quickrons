@@ -151,6 +151,30 @@ async function fetchFullOrder(orderId) {
   });
 }
 
+// ─── GET /me — partner profile ───────────────────────────────────────────────
+//
+// Returns the partner profile that loadPartner already resolved.
+// Used by the kitchen app to get the partner ID for socket room joins.
+
+router.get('/me', asyncH(async (req, res) => {
+  // req.partner is already populated by the loadPartner middleware above.
+  // Augment with ownerName and category for a richer profile card.
+  const detail = await prisma.partner.findUnique({
+    where:  { id: req.partner.id },
+    select: {
+      id:          true,
+      brand:       true,
+      ownerName:   true,
+      category:    true,
+      zoneCode:    true,
+      kycStatus:   true,
+      isActive:    true,
+      commissionBps: true,
+    },
+  });
+  res.json({ partner: detail ?? req.partner });
+}));
+
 // ─── GET /orders — list incoming orders ──────────────────────────────────────
 //
 // Query params:
