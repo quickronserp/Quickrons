@@ -59,6 +59,11 @@ export const sendOtp = (phone) =>
 export const verifyOtp = (phone, otp) =>
   request('/api/v1/auth/verify-otp', { method: 'POST', body: { phone, otp } });
 
+// Returns the *current* server-side user (source of truth for role).
+// Used by AuthContext on cold-start to refresh stale cached sessions.
+export const fetchMe = (token) =>
+  request('/api/v1/auth/me', { token });
+
 export const api = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),

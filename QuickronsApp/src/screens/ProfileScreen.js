@@ -54,7 +54,7 @@ export default function ProfileScreen({ navigation }) {
           icon="storefront"
           color={colors.premium}
           title="Become a partner"
-          desc="Home maker, hotel, or caterer"
+          desc="Home maker, restaurant, or caterer"
           onPress={() => navigation.navigate('PartnerOnboarding')}
         />
         <Action icon="heart" color={colors.brand} title="Saved kitchens" />

@@ -6,7 +6,7 @@
 //   Fathima's Kitchen          → 9876543211
 //   Malabar Hotel              → 9876543221
 //   Ammu's Homely Meals        → 9876543222
-//   Forra Catering             → 9876543223
+//   Forra Foods                → 9876543223  (healthy/gym/wellness flagship)
 //   Perinthalmanna Grill House → 9876543224
 //
 // Partner upsert strategy: find by `brand` (unique in dev), then update
@@ -49,7 +49,7 @@ const USERS = [
   { phone: '9876543211', name: 'Fathima',                    role: 'PARTNER'  },
   { phone: '9876543221', name: 'Malabar Hotel Owner',        role: 'PARTNER'  },
   { phone: '9876543222', name: 'Ammu',                       role: 'PARTNER'  },
-  { phone: '9876543223', name: 'Forra Catering Manager',     role: 'PARTNER'  },
+  { phone: '9876543223', name: 'Forra Foods Manager',        role: 'PARTNER'  },
   { phone: '9876543224', name: 'Grill House Manager',        role: 'PARTNER'  },
   // Riders
   { phone: '9876543212', name: 'Rajan K',                    role: 'RIDER'    },
@@ -90,9 +90,11 @@ const PARTNERS = [
   },
   {
     phone:         '9876543223',
-    brand:         'Forra Catering',
-    ownerName:     'Forra Catering Manager',
-    category:      'CATERER',
+    brand:         'Forra Foods',
+    ownerName:     'Forra Foods Manager',
+    // FORRA_SUPPLIER positions this partner as the Quickrons flagship —
+    // healthy Kerala foods, high-protein bowls, gym/wellness nutrition.
+    category:      'FORRA_SUPPLIER',
     commissionBps: 1200,
     fssaiNumber:   'FSSAI-DEV-FORRA',
   },
@@ -233,39 +235,64 @@ const MENUS = {
     },
   ],
 
-  // Forra Catering
+  // Forra Foods — Quickrons flagship: healthy Kerala foods, gym/wellness nutrition.
+  // Positioned for fitness-conscious users + traditional wellness seekers.
   '9876543223': [
     {
-      name: 'Party Pack Biryani (10 pax)',
-      description: 'Fragrant Malabar chicken biryani packed for events. 10-person serving.',
-      pricePaise: 199000, isVeg: false, signature: true, sortOrder: 1,
-      category: 'catering',
-      dailyQuantityLimit: 20, dailyQuantityRemaining: 20,
-      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
+      name: 'Dumbbell Chicken & Rice',
+      description: 'Grilled lean chicken (180g), brown kaima rice, sautéed greens. ~45g protein. Built for gym days.',
+      pricePaise: 24900, isVeg: false, signature: true, sortOrder: 1,
+      category: 'healthy',
+      dailyQuantityLimit: 50, dailyQuantityRemaining: 50,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name: 'Sadhya Catering (20 pax)',
-      description: 'Full Kerala sadya delivered for weddings & functions. 20-person pack.',
-      pricePaise: 350000, isVeg: true, signature: true, sortOrder: 2,
-      category: 'catering',
-      dailyQuantityLimit: 10, dailyQuantityRemaining: 10,
-      servingStartMinutes: 9 * 60, servingEndMinutes: 14 * 60,
-    },
-    {
-      name: 'Snack Box (Samosa + Tea)',
-      description: 'Box of 6 crispy samosas and a flask of ginger tea.',
-      pricePaise: 18900, isVeg: true, signature: false, sortOrder: 3,
-      category: 'snacks',
+      name: 'Sprouted Ragi Powder',
+      description: 'Stone-ground Kerala ragi, sprouted & sun-dried. 500g pack. High calcium & iron. For kanji, dosa, baby food.',
+      pricePaise: 18900, isVeg: true, signature: true, sortOrder: 2,
+      category: 'wellness',
       dailyQuantityLimit: null, dailyQuantityRemaining: null,
-      servingStartMinutes: 9 * 60, servingEndMinutes: 18 * 60,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
     },
     {
-      name: 'Beef Roast Pack (1 kg)',
-      description: 'Dry Kerala beef roast, 1 kg. Party-ready, tamper sealed.',
-      pricePaise: 55000, isVeg: false, signature: false, sortOrder: 4,
-      category: 'catering',
-      dailyQuantityLimit: 30, dailyQuantityRemaining: 30,
-      servingStartMinutes: 10 * 60, servingEndMinutes: 18 * 60,
+      name: 'Kerala Protein Kanji Mix',
+      description: 'Traditional njavara + green gram + groundnut blend. ~22g protein per serving. Authentic recovery food.',
+      pricePaise: 21900, isVeg: true, signature: false, sortOrder: 3,
+      category: 'wellness',
+      dailyQuantityLimit: null, dailyQuantityRemaining: null,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
+    },
+    {
+      name: 'High Protein Puttu Mix',
+      description: 'Red rice + soya + roasted gram puttu mix. 600g pack. ~18g protein per puttu serving.',
+      pricePaise: 16900, isVeg: true, signature: false, sortOrder: 4,
+      category: 'wellness',
+      dailyQuantityLimit: null, dailyQuantityRemaining: null,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
+    },
+    {
+      name: 'Banana Peanut Smoothie Mix',
+      description: 'Kerala nendran banana powder + peanut + dates. Just add milk. ~14g protein, no added sugar.',
+      pricePaise: 14900, isVeg: true, signature: false, sortOrder: 5,
+      category: 'wellness',
+      dailyQuantityLimit: null, dailyQuantityRemaining: null,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
+    },
+    {
+      name: 'Healthy Meal Combo',
+      description: 'Brown rice, grilled fish, avial, beetroot thoran, butter milk. Balanced 650 kcal Kerala plate.',
+      pricePaise: 22900, isVeg: false, signature: true, sortOrder: 6,
+      category: 'healthy',
+      dailyQuantityLimit: 40, dailyQuantityRemaining: 40,
+      servingStartMinutes: 11 * 60, servingEndMinutes: 15 * 60,
+    },
+    {
+      name: 'Gym Meal Chicken Bowl',
+      description: 'Shredded grilled chicken (200g), quinoa, steamed broccoli, boiled egg. ~55g protein, 580 kcal.',
+      pricePaise: 27900, isVeg: false, signature: true, sortOrder: 7,
+      category: 'healthy',
+      dailyQuantityLimit: 35, dailyQuantityRemaining: 35,
+      servingStartMinutes: 6 * 60, servingEndMinutes: 22 * 60,
     },
   ],
 
@@ -402,8 +429,13 @@ async function main() {
       fssaiNumber:   p.fssaiNumber,
     };
 
-    // Find existing partner by brand first.
-    const existing = await prisma.partner.findFirst({ where: { brand: p.brand } });
+    // Find existing partner by brand first, then by userId. The userId
+    // fallback matters when the seed renames a brand (e.g. "Forra Catering"
+    // → "Forra Foods"): brand lookup misses, but userId is @unique so we
+    // must update the existing row instead of creating a duplicate.
+    const existing =
+      (await prisma.partner.findFirst({ where: { brand: p.brand } })) ||
+      (await prisma.partner.findUnique({ where: { userId: owner.id } }));
 
     let partner;
     if (existing) {
@@ -483,14 +515,21 @@ async function main() {
   }
   console.log('  ✓ partner wallets');
 
-  // 7. Menu items — find by (partnerId, name), update or create
+  // 7. Menu items — find by (partnerId, name), update or create.
+  // After each partner's menu is upserted, deactivate any of their *other*
+  // still-active items that aren't in the new list. This keeps the seed
+  // idempotent across rebrands (e.g. Forra Catering → Forra Foods, where
+  // the old catering items must disappear from the storefront).
+  // Soft-delete only — hard delete is blocked by Order/OrderItem FKs.
   console.log('[seed] menu items…');
   let totalItems = 0;
   for (const [phone, menuList] of Object.entries(MENUS)) {
     const partner = partnerByPhone[phone];
     if (!partner) { console.warn(`  ! no partner for phone ${phone} — skipping`); continue; }
 
+    const keepNames = new Set();
     for (const m of menuList) {
+      keepNames.add(m.name);
       const data = {
         partnerId:              partner.id,
         name:                   m.name,
@@ -518,7 +557,17 @@ async function main() {
       }
       totalItems++;
     }
-    console.log(`    ✓ ${menuList.length} items for ${partner.brand}`);
+
+    const stale = await prisma.menuItem.updateMany({
+      where: {
+        partnerId: partner.id,
+        active:    true,
+        name:      { notIn: Array.from(keepNames) },
+      },
+      data: { active: false },
+    });
+    const staleSuffix = stale.count > 0 ? `  (deactivated ${stale.count} stale)` : '';
+    console.log(`    ✓ ${menuList.length} items for ${partner.brand}${staleSuffix}`);
   }
   console.log(`  ✓ ${totalItems} menu items total`);
 

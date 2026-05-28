@@ -2,6 +2,7 @@ const express = require('express');
 const jwt     = require('jsonwebtoken');
 const prisma  = require('../prisma');
 const { asyncH, BadRequest, Unauthorized } = require('../error');
+const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -70,6 +71,21 @@ router.post('/verify-otp', asyncH(async (req, res) => {
     expiresIn: 15 * 60,                            // seconds — convenience for clients
     user: { id: user.id, phone: user.phone, role: user.role, name: user.name },
   });
+}));
+
+// GET /api/v1/auth/me
+// Returns the *current* server-side user record (id, phone, role, name).
+// Clients should call this on cold-start to self-heal stale cached sessions —
+// e.g. a phone that was a CUSTOMER at login time but has since been promoted
+// to PARTNER/RIDER/ADMIN by the seed or admin console. The role here is the
+// source of truth; clients must update their cached user object when it differs.
+router.get('/me', verifyToken, asyncH(async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where:  { id: req.user.id },
+    select: { id: true, phone: true, role: true, name: true, isActive: true },
+  });
+  if (!user || !user.isActive) throw Unauthorized('User not found or deactivated');
+  res.json({ user });
 }));
 
 // POST /api/v1/auth/refresh   { refreshToken }

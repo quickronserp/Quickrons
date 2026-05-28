@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { CartProvider, useCart } from './src/state/CartContext';
 import { AuthProvider, useAuth } from './src/state/AuthContext';
-import { I18nProvider } from './src/i18n';
+import { I18nProvider, useI18n } from './src/i18n';
 
 import HomeScreen              from './src/screens/HomeScreen';
 import PartnerScreen           from './src/screens/PartnerScreen';
@@ -27,6 +27,7 @@ import OtpVerifyScreen         from './src/screens/OtpVerifyScreen';
 import PartnerOpsScreen        from './src/screens/PartnerOpsScreen';
 import RiderOpsScreen          from './src/screens/RiderOpsScreen';
 import AdminOpsScreen          from './src/screens/AdminOpsScreen';
+import LanguageSelectScreen    from './src/screens/LanguageSelectScreen';
 
 import { colors } from './src/theme';
 
@@ -158,6 +159,7 @@ function AdminStack() {
 // ─── Root: pick stack based on role ──────────────────────────────────────
 function RootNavigator() {
   const { isAuthenticated, bootstrapping, accessToken, user, signOut } = useAuth();
+  const { hasChosen, bootstrapping: i18nBoot } = useI18n();
 
   // Dev escape hatch — open  http://localhost:8082/?signout=1  to force-clear a stale session.
   useEffect(() => {
@@ -177,6 +179,8 @@ function RootNavigator() {
   if (__DEV__) {
     console.log('[auth]', {
       bootstrapping,
+      i18nBoot,
+      hasChosen,
       isAuthenticated,
       hasToken: !!accessToken,
       userPhone: user?.phone,
@@ -184,7 +188,18 @@ function RootNavigator() {
     });
   }
 
-  if (bootstrapping) return <BootSplash />;
+  if (bootstrapping || i18nBoot) return <BootSplash />;
+
+  // First launch gate: prompt for language BEFORE auth so the login screen
+  // already reflects the user's preferred language.
+  if (!hasChosen) {
+    return (
+      <Stack.Navigator key="lang" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="LanguageSelect" component={LanguageSelectScreen} />
+      </Stack.Navigator>
+    );
+  }
+
   if (!isAuthenticated) return <AuthStack key="auth" />;
 
   // Route by role — non-customer roles get their own root stack (no tabs, no cart).

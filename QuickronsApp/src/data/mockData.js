@@ -12,8 +12,8 @@ export const ZONE = {
 export const PARTNERS = [
   {
     id: 'forra-flagship',
-    name: 'Forra Foods Kitchen',
-    nameMl: 'ഫോറ ഫുഡ്സ് കിച്ചൻ',
+    name: 'Forra Foods',
+    nameMl: 'ഫോറ ഫുഡ്സ്',
     segment: 'forra',
     tagline: 'Daily-fresh thalis, biryanis & healthy boxes',
     taglineMl: 'ദിനവും പുതിയ ഊണ്, ബിരിയാണി, ആരോഗ്യ ബോക്സുകൾ',
@@ -113,7 +113,7 @@ export const PARTNERS = [
         desc: 'Signature ghee rice, Malabar chicken curry.' },
       { id: 'sahibs-3', name: 'Veg Meals', nameMl: 'വെജ് ഊണ്',
         price: 89, veg: true,
-        desc: 'Standard hotel meals — rice, sambar, two thoran, papadam.' },
+        desc: 'Standard restaurant meals — rice, sambar, two thoran, papadam.' },
     ],
   },
   {
@@ -132,7 +132,7 @@ export const PARTNERS = [
     dishes: [
       { id: 'palace-1', name: 'Chicken Biryani', nameMl: 'ചിക്കൻ ബിരിയാണി',
         price: 159, veg: false,
-        desc: 'Standard hotel chicken biryani. Filling, well-spiced.' },
+        desc: 'Standard restaurant chicken biryani. Filling, well-spiced.' },
       { id: 'palace-2', name: 'Mutton Curry + Appam', nameMl: 'മട്ടൺ കറി + അപ്പം',
         price: 219, veg: false,
         desc: '3 lacy appams, slow-cooked mutton curry.' },
@@ -178,7 +178,7 @@ export const RIDER_PROFILE = {
 };
 
 export const ACTIVE_DELIVERIES = [
-  { id: 'd1', orderNo: 'QR-A8X2H7K9', from: 'Forra Foods Kitchen', to: 'PMNA Town, MG Road',
+  { id: 'd1', orderNo: 'QR-A8X2H7K9', from: 'Forra Foods', to: 'PMNA Town, MG Road',
     payout: 35, distance: '1.8 km', etaMins: 9, status: 'pickup' },
   { id: 'd2', orderNo: 'QR-B3Q1L4M2', from: "Aisha Umma's Kitchen", to: 'Pattikkad',
     payout: 42, distance: '2.6 km', etaMins: 15, status: 'queued' },

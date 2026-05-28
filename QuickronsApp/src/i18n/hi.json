@@ -1,0 +1,74 @@
+{
+  "app": {
+    "name": "Quickrons",
+    "tagline": "असली मालाबार खाना, तेज़ी से"
+  },
+  "auth": {
+    "login_title": "Quickrons में आपका स्वागत है",
+    "login_subtitle": "जारी रखने के लिए अपना फ़ोन नंबर दर्ज करें",
+    "phone_label": "फ़ोन नंबर",
+    "continue": "जारी रखें",
+    "terms": "जारी रखने पर आप हमारी शर्तें और गोपनीयता नीति स्वीकार करते हैं",
+    "otp_title": "अपना नंबर सत्यापित करें",
+    "otp_subtitle": "हमने +91 {{phone}} पर 6-अंकों का कोड भेजा है",
+    "otp_resend": "OTP फिर से भेजें",
+    "otp_verify": "सत्यापित करें",
+    "resend_in": "{{seconds}} सेकंड में फिर से भेजें",
+    "edit": "बदलें"
+  },
+  "language": {
+    "title": "अपनी भाषा चुनें",
+    "subtitle": "आप इसे बाद में प्रोफ़ाइल से बदल सकते हैं",
+    "continue": "जारी रखें"
+  },
+  "home": {
+    "greeting_morning": "सुप्रभात",
+    "greeting_evening": "शुभ संध्या",
+    "location_label": "यहाँ डिलीवर करें",
+    "tabs": {
+      "now": "अभी",
+      "now_desc": "30 मिनट में कुछ भी",
+      "preorder": "प्री-ऑर्डर",
+      "preorder_desc": "बेहतरीन रसोई से शेड्यूल करें"
+    },
+    "filters": { "all": "सभी", "forra": "फ़ोर्रा", "home": "घर का बना", "hotel": "रेस्तरां", "caterer": "कैटरिंग" },
+    "section_kitchens": "आपके पास {{count}} रसोई डिलीवरी कर रही हैं",
+    "forra_spotlight_tag": "हमारा फ़्लैगशिप",
+    "forra_spotlight_title": "Forra Foods",
+    "forra_spotlight_sub": "रोज़ ताज़ा थाली, बिरयानी और नाश्ता"
+  },
+  "cart": {
+    "title": "आपकी टोकरी",
+    "empty_title": "आपकी टोकरी खाली है",
+    "empty_desc": "रसोई देखें और अपनी पसंद का व्यंजन जोड़ें.",
+    "browse_button": "रसोई देखें",
+    "subtotal": "वस्तु उप-योग",
+    "delivery_fee": "डिलीवरी शुल्क",
+    "platform_fee": "प्लेटफ़ॉर्म शुल्क",
+    "gst": "जीएसटी (5%)",
+    "to_pay": "भुगतान",
+    "checkout_cta": "चेकआउट पर जाएँ",
+    "view_cart": "टोकरी देखें"
+  },
+  "checkout": {
+    "title": "चेकआउट",
+    "deliver_to": "यहाँ डिलीवर करें",
+    "payment": "भुगतान",
+    "instructions": "डिलीवरी निर्देश",
+    "trust_message": "सील-बंद पैकिंग. 100% रिप्लेसमेंट गारंटी.",
+    "place_order": "ऑर्डर करें"
+  },
+  "track": {
+    "eta_label": "अनुमानित समय",
+    "stages": {
+      "placed": "ऑर्डर मिल गया",
+      "cooking": "रसोई में पक रहा है",
+      "sealed": "सील किया और उठाया",
+      "enroute": "राइडर रास्ते में",
+      "delivered": "डिलीवर हो गया"
+    },
+    "rider_label": "Quickrons राइडर",
+    "delivered_cta": "ऑर्डर डिलीवर हुआ — रेट करें"
+  },
+  "common": { "add": "जोड़ें", "back": "वापस", "min": "मिनट", "rating": "रेटिंग", "kitchen": "रसोई", "delivery": "डिलीवरी", "language": "भाषा" }
+}

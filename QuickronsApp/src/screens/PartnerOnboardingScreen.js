@@ -7,8 +7,8 @@ import { colors, radii, space } from '../theme';
 const SEGMENTS = [
   { id: 'homeMaker', label: 'Home maker', icon: 'home', color: colors.homeMaker,
     desc: 'I cook from a home kitchen, want to sell limited daily quantity.' },
-  { id: 'hotel', label: 'Hotel kitchen', icon: 'business', color: colors.premium,
-    desc: 'I represent a 4★/5★ hotel offering delivery SKUs.' },
+  { id: 'restaurant', label: 'Restaurant', icon: 'business', color: colors.premium,
+    desc: 'I run a restaurant offering delivery SKUs and packaged meals.' },
   { id: 'caterer', label: 'Caterer', icon: 'people', color: colors.caterer,
     desc: 'I run a tiffin / catering service with daily orders.' },
 ];
@@ -93,7 +93,7 @@ export default function PartnerOnboardingScreen({ navigation }) {
             <View style={[styles.helpBox, { backgroundColor: colors.success + '10' }]}>
               <Ionicons name="cash-outline" size={18} color={colors.success} />
               <Text style={[styles.helpTxt, { color: colors.success }]}>
-                Home makers: 12% commission. Caterers: 15%. Hotels: 18–22%.
+                Home makers: 12% commission. Caterers: 15%. Restaurants: 18–22%.
               </Text>
             </View>
           </>
