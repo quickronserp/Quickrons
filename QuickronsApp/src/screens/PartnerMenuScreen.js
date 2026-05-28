@@ -1,11 +1,13 @@
 // PartnerMenuScreen — partner-owned menu CRUD.
-// Lets a partner add / edit / hide their own menu items end-to-end.
+// Lets a partner add / edit / hide their own menu items end-to-end,
+// including direct photo upload (camera / gallery / computer file).
 //
 // Routes used (all server-scoped to the authenticated partner):
 //   GET    /api/v1/partner/menu
 //   POST   /api/v1/partner/menu
 //   PATCH  /api/v1/partner/menu/:id
 //   DELETE /api/v1/partner/menu/:id   (soft delete → active:false)
+//   POST   /api/v1/partner/menu/upload (multipart "file") → { url, ... }
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -15,8 +17,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
-import { partnerMenuApi } from '../lib/api';
+import { partnerMenuApi, API_BASE } from '../lib/api';
 import { colors, radii, space } from '../theme';
+
+// expo-image-picker is loaded lazily so the bundle still compiles before the
+// dependency is installed. The Upload button shows a clear hint until then.
+let ImagePicker = null;
+try { ImagePicker = require('expo-image-picker'); } catch (_) { /* run: npx expo install expo-image-picker */ }
+
+// Backend may return a relative path (/uploads/menu/<id>/<file>.jpg) for
+// local-disk storage, or an absolute https://res.cloudinary.com/... URL.
+// Convert relative to absolute so <Image source={{uri}}/> can fetch it.
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
+  return url;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,6 +130,108 @@ export default function PartnerMenuScreen({ navigation }) {
   const [error, setError]           = useState(null);
   const [editing, setEditing]       = useState(null);  // null = list view; object = editor
   const [saving, setSaving]         = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const [showUrlPaste, setShowUrlPaste] = useState(false); // advanced fallback
+
+  // ── Photo upload ─────────────────────────────────────────────────────────
+  //
+  // Tries native image-picker if available. On web, expo-image-picker uses
+  // the browser file input under the hood — same API for both platforms.
+  //
+  // Camera vs gallery: native shows a system sheet via launchCameraAsync /
+  // launchImageLibraryAsync. On web only the file picker is supported, so we
+  // skip the source choice and go straight to the library picker.
+
+  async function pickAndUpload(source /* 'camera' | 'library' */) {
+    if (!ImagePicker) {
+      Alert.alert(
+        'Setup required',
+        'The image picker module is not installed.\n\nRun this in the QuickronsApp folder:\n\n  npx expo install expo-image-picker',
+      );
+      return;
+    }
+    try {
+      // Permissions — only relevant on native. Web returns granted automatically.
+      if (Platform.OS !== 'web') {
+        if (source === 'camera') {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert('Camera permission denied', 'Grant camera access from system settings to take a photo.');
+            return;
+          }
+        } else {
+          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert('Gallery permission denied', 'Grant photo access from system settings to pick from gallery.');
+            return;
+          }
+        }
+      }
+
+      const launcher = source === 'camera'
+        ? ImagePicker.launchCameraAsync
+        : ImagePicker.launchImageLibraryAsync;
+
+      const result = await launcher({
+        mediaTypes:  ImagePicker.MediaTypeOptions
+          ? ImagePicker.MediaTypeOptions.Images       // SDK 50+ enum
+          : 'Images',
+        allowsEditing: true,
+        aspect:        [4, 3],
+        quality:       0.85,
+      });
+
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset) return;
+
+      // Build the FormData payload. Web returns asset.file (a real File);
+      // native returns just a uri — wrap into { uri, name, type } so RN's
+      // FormData.append serialises it correctly.
+      let payload;
+      if (Platform.OS === 'web' && asset.file) {
+        payload = asset.file;
+      } else {
+        const uri  = asset.uri;
+        // Derive type/name — Expo gives mimeType in SDK 49+; fall back if missing.
+        const type = asset.mimeType || (uri.endsWith('.png') ? 'image/png' : 'image/jpeg');
+        const ext  = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
+        const name = asset.fileName || `upload.${ext}`;
+        payload = { uri, name, type };
+      }
+
+      setUploading(true);
+      try {
+        const { url } = await partnerMenuApi.upload(payload, accessToken);
+        setEditing(e => ({ ...e, imageUrl: url }));
+      } catch (err) {
+        Alert.alert('Upload failed', err.message || 'Could not upload image');
+      } finally {
+        setUploading(false);
+      }
+    } catch (err) {
+      Alert.alert('Could not open picker', err.message || String(err));
+    }
+  }
+
+  function clearPhoto() {
+    setEditing(e => ({ ...e, imageUrl: '' }));
+  }
+
+  // On native we offer a small chooser; on web there is no camera path so
+  // we go straight to the file picker.
+  function startUpload() {
+    if (Platform.OS === 'web') return pickAndUpload('library');
+    Alert.alert(
+      'Add photo',
+      'Choose where to get the photo from.',
+      [
+        { text: 'Take photo',       onPress: () => pickAndUpload('camera') },
+        { text: 'Choose from gallery', onPress: () => pickAndUpload('library') },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }
 
   const fetchItems = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -315,33 +434,96 @@ export default function PartnerMenuScreen({ navigation }) {
                 })}
               </ScrollView>
 
-              {/* 6. Image URL */}
-              <Field
-                label="Image URL"
-                value={editing.imageUrl}
-                onChangeText={t => setEditing(e => ({ ...e, imageUrl: t }))}
-                placeholder="https://… (paste a hosted image URL)"
-                keyboardType="url"
-                autoCapitalize="none"
-                autoCorrect={false}
-                hint="Tip: Cloudinary, Imgur, Unsplash, or any public HTTPS URL"
-              />
+              {/* 6. Photo — upload-first, with URL paste as an advanced fallback */}
+              <Text style={styles.label}>Photo</Text>
 
-              {/* 7. Live image preview — capped height so it never eats the viewport */}
+              {/* Live preview (always rendered; placeholder when empty) */}
               <View style={styles.previewWrap}>
                 {editing.imageUrl ? (
                   <Image
-                    source={{ uri: editing.imageUrl }}
+                    source={{ uri: resolveImageUrl(editing.imageUrl) }}
                     style={styles.previewImg}
                     resizeMode="cover"
                   />
                 ) : (
                   <View style={[styles.previewImg, styles.previewEmpty]}>
                     <Ionicons name="image-outline" size={30} color={colors.inkMuted} />
-                    <Text style={styles.previewEmptyTxt}>Live image preview</Text>
+                    <Text style={styles.previewEmptyTxt}>No photo yet</Text>
+                  </View>
+                )}
+
+                {uploading && (
+                  <View style={styles.previewLoading}>
+                    <ActivityIndicator size="large" color="#fff" />
+                    <Text style={styles.previewLoadingTxt}>Uploading…</Text>
                   </View>
                 )}
               </View>
+
+              {/* Upload / Change / Remove buttons */}
+              <View style={styles.photoActions}>
+                <Pressable
+                  onPress={startUpload}
+                  disabled={uploading}
+                  style={[styles.photoBtn, styles.photoBtnPrimary, uploading && { opacity: 0.6 }]}>
+                  <Ionicons
+                    name={editing.imageUrl ? 'sync' : 'cloud-upload'}
+                    size={16}
+                    color="#fff"
+                  />
+                  <Text style={styles.photoBtnPrimaryTxt}>
+                    {editing.imageUrl
+                      ? (Platform.OS === 'web' ? 'Change photo' : 'Change')
+                      : (Platform.OS === 'web' ? 'Upload photo' : 'Add photo')}
+                  </Text>
+                </Pressable>
+
+                {editing.imageUrl ? (
+                  <Pressable
+                    onPress={clearPhoto}
+                    disabled={uploading}
+                    style={[styles.photoBtn, styles.photoBtnGhost]}>
+                    <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                    <Text style={[styles.photoBtnGhostTxt, { color: colors.danger }]}>Remove</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+
+              <Text style={styles.hint}>
+                {Platform.OS === 'web'
+                  ? 'JPG, PNG, or WebP · max 5 MB. The photo uploads to Quickrons storage.'
+                  : 'JPG, PNG, or WebP · max 5 MB. Take a fresh photo or pick from your gallery.'}
+              </Text>
+
+              {/* Advanced: paste a URL instead of uploading */}
+              <Pressable
+                onPress={() => setShowUrlPaste(v => !v)}
+                style={styles.advancedToggle}>
+                <Ionicons
+                  name={showUrlPaste ? 'chevron-up' : 'chevron-down'}
+                  size={12}
+                  color={colors.inkSoft}
+                />
+                <Text style={styles.advancedToggleTxt}>
+                  {showUrlPaste ? 'Hide URL paste option' : 'Or paste an image URL (advanced)'}
+                </Text>
+              </Pressable>
+
+              {showUrlPaste && (
+                <View style={{ marginTop: 6, marginBottom: space.md }}>
+                  <TextInput
+                    style={styles.input}
+                    value={editing.imageUrl}
+                    onChangeText={t => setEditing(e => ({ ...e, imageUrl: t }))}
+                    placeholder="https://… (Cloudinary, S3, Unsplash, etc.)"
+                    placeholderTextColor={colors.inkMuted}
+                    keyboardType="url"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <Text style={styles.hint}>Must start with http:// or https://</Text>
+                </View>
+              )}
 
               {/* 8-10. Toggles */}
               <ToggleRow
@@ -455,7 +637,11 @@ export default function PartnerMenuScreen({ navigation }) {
             <View key={item.id} style={[styles.itemCard, !item.active && styles.itemCardInactive]}>
               {/* Thumbnail */}
               {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={styles.thumb} resizeMode="cover" />
+                <Image
+                  source={{ uri: resolveImageUrl(item.imageUrl) }}
+                  style={styles.thumb}
+                  resizeMode="cover"
+                />
               ) : (
                 <View style={[styles.thumb, styles.thumbEmpty]}>
                   <Ionicons name="restaurant" size={22} color={colors.inkMuted} />
@@ -634,6 +820,34 @@ const styles = StyleSheet.create({
   },
   previewEmpty: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   previewEmptyTxt: { color: colors.inkMuted, fontSize: 12, fontWeight: '600' },
+
+  // Overlay shown while an upload is in flight — sits on top of the preview.
+  previewLoading: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    borderRadius: radii.md,
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  previewLoadingTxt: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  photoActions: {
+    flexDirection: 'row', gap: 8, marginBottom: 6,
+  },
+  photoBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 12, borderRadius: radii.sm,
+  },
+  photoBtnPrimary:   { backgroundColor: colors.brand },
+  photoBtnPrimaryTxt:{ color: '#fff', fontWeight: '800', fontSize: 14 },
+  photoBtnGhost:     { backgroundColor: colors.bgAlt, borderWidth: 1, borderColor: colors.border },
+  photoBtnGhostTxt:  { color: colors.inkSoft, fontWeight: '800', fontSize: 14 },
+
+  advancedToggle: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginTop: 10, marginBottom: 4,
+    alignSelf: 'flex-start',
+  },
+  advancedToggleTxt: { fontSize: 12, color: colors.inkSoft, fontWeight: '700' },
 
   inlineError: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

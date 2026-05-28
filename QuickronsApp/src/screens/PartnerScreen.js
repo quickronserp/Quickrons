@@ -4,10 +4,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import SegmentBadge from '../components/SegmentBadge';
-import { kitchensApi } from '../lib/api';
+import { kitchensApi, API_BASE } from '../lib/api';
 import { colors, radii, space } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
+
+// MenuItem.imageUrl may be relative (/uploads/...) or absolute (https://cloudinary...).
+// Convert relative to absolute so RN <Image> can fetch it.
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
+  return url;
+}
 
 export default function PartnerScreen({ route, navigation }) {
   const { partnerId } = route.params;
@@ -195,6 +204,8 @@ function MenuItemRow({ item, cartItems, onAdd }) {
     item.isAvailable === false ||
     (item.dailyQuantityRemaining != null && item.dailyQuantityRemaining <= 0);
 
+  const imgSrc = resolveImageUrl(item.imageUrl);
+
   return (
     <View style={[menuStyles.row, unavailable && menuStyles.rowDim]}>
       <View style={{ flex: 1 }}>
@@ -217,20 +228,32 @@ function MenuItemRow({ item, cartItems, onAdd }) {
         )}
       </View>
 
-      {unavailable ? (
-        <View style={menuStyles.soldOutBtn}>
-          <Text style={menuStyles.soldOutTxt}>Sold out</Text>
-        </View>
-      ) : qty > 0 ? (
-        <View style={menuStyles.addedTag}>
-          <Ionicons name="checkmark" size={14} color={colors.success} />
-          <Text style={menuStyles.addedTxt}>{qty} added</Text>
-        </View>
-      ) : (
-        <Pressable onPress={onAdd} style={menuStyles.addBtn}>
-          <Ionicons name="add" size={18} color="#fff" />
-        </Pressable>
-      )}
+      {/* Right-side column: image thumb (when available) + add/sold-out CTA */}
+      <View style={menuStyles.rightCol}>
+        {imgSrc ? (
+          <Image source={{ uri: imgSrc }} style={menuStyles.itemImg} resizeMode="cover" />
+        ) : (
+          <View style={[menuStyles.itemImg, menuStyles.itemImgEmpty]}>
+            <Ionicons name="restaurant-outline" size={22} color={colors.inkMuted} />
+          </View>
+        )}
+
+        {unavailable ? (
+          <View style={menuStyles.soldOutBtn}>
+            <Text style={menuStyles.soldOutTxt}>Sold out</Text>
+          </View>
+        ) : qty > 0 ? (
+          <View style={menuStyles.addedTag}>
+            <Ionicons name="checkmark" size={14} color={colors.success} />
+            <Text style={menuStyles.addedTxt}>{qty} added</Text>
+          </View>
+        ) : (
+          <Pressable onPress={onAdd} style={menuStyles.addBtn}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={menuStyles.addBtnTxt}>ADD</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -300,10 +323,20 @@ const menuStyles = StyleSheet.create({
   desc:   { fontSize: 12, color: colors.inkSoft, marginTop: 4, lineHeight: 17 },
   price:  { fontSize: 14, fontWeight: '700', color: colors.ink, marginTop: 6 },
   unavailable: { fontSize: 11, color: colors.danger, marginTop: 2, fontWeight: '600' },
-  addBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center',
+  // Right-side column: image thumb stacked above the CTA.
+  rightCol: { alignItems: 'center', gap: 8, minWidth: 96 },
+  itemImg: {
+    width: 96, height: 96, borderRadius: radii.md,
+    backgroundColor: colors.bgAlt,
   },
+  itemImgEmpty: { alignItems: 'center', justifyContent: 'center' },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.sm,
+    backgroundColor: colors.brand, justifyContent: 'center',
+    minWidth: 72,
+  },
+  addBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 12 },
   soldOutBtn: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.sm,
     borderWidth: 1, borderColor: colors.border,

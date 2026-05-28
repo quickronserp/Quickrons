@@ -146,6 +146,43 @@ export const partnerMenuApi = {
     request(`/api/v1/partner/menu/${id}`, { method: 'PATCH', body, token }),
   remove: (id, token) =>
     request(`/api/v1/partner/menu/${id}`, { method: 'DELETE', token }),
+
+  // Multipart upload helper.
+  //   `file` should be { uri, name, type } as returned by expo-image-picker
+  //   (web) or an actual Blob/File object. Returns { url, provider, ... }.
+  //
+  // Note: we do NOT use the `request()` wrapper here because that helper sets
+  // Content-Type to application/json. FormData needs the browser/RN to set
+  // multipart/form-data with the correct boundary, so we fetch directly.
+  upload: async (file, token) => {
+    const form = new FormData();
+    // FormData on web wants Blob/File; on RN it wants { uri, name, type }.
+    // Both shapes are accepted by the platform's FormData.append.
+    form.append('file', file);
+
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/api/v1/partner/menu/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body:    form,
+      });
+    } catch (_) {
+      throw new ApiError('Network error during upload', { code: 'NETWORK_ERROR' });
+    }
+
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+
+    if (!res.ok) {
+      const err = data?.error || {};
+      throw new ApiError(err.message || `Upload failed (HTTP ${res.status})`, {
+        status: res.status,
+        code:   err.code,
+      });
+    }
+    return data;
+  },
 };
 
 // ─── Rider Ops ────────────────────────────────────────────────────────────────

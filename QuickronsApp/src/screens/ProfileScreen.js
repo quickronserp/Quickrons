@@ -1,16 +1,44 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
-import { useI18n } from '../i18n';
+import { useI18n, SUPPORTED_LANGS } from '../i18n';
 import { colors, radii, space, segmentMeta } from '../theme';
+
+const LANG_NATIVE = { en: 'English', ml: 'മലയാളം', hi: 'हिन्दी' };
 
 export default function ProfileScreen({ navigation }) {
   const { isPlus } = useCart();
   const { user, signOut } = useAuth();
   const { lang, setLang } = useI18n();
+
+  // 3-way language picker. Uses Alert on native; on web Alert renders buttons
+  // in a single confirm box, which works but is ugly — falls back to window.prompt
+  // listing options. Both paths call setLang() which persists and re-renders.
+  function openLanguagePicker() {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const lines = SUPPORTED_LANGS.map((l, i) => `${i + 1}. ${l.native}`).join('\n');
+      const ans = window.prompt(`Choose your language\n\n${lines}\n\nEnter 1, 2, or 3:`, '1');
+      const idx = parseInt(ans, 10) - 1;
+      if (Number.isInteger(idx) && SUPPORTED_LANGS[idx]) {
+        setLang(SUPPORTED_LANGS[idx].code);
+      }
+      return;
+    }
+    Alert.alert(
+      'Choose your language',
+      'Pick the language you prefer for the app.',
+      [
+        ...SUPPORTED_LANGS.map(l => ({
+          text: l.native + (lang === l.code ? '  ✓' : ''),
+          onPress: () => setLang(l.code),
+        })),
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }
 
   const displayName = user?.name  || user?.fullName || '';
   const phone       = user?.phone || '';
@@ -62,9 +90,9 @@ export default function ProfileScreen({ navigation }) {
         <Action
           icon="language"
           color={colors.caterer}
-          title={lang === 'en' ? 'Switch to Malayalam' : 'Switch to English'}
-          desc={lang === 'en' ? 'ഭാഷ മാറ്റാം' : 'Change app language'}
-          onPress={() => setLang(lang === 'en' ? 'ml' : 'en')}
+          title="Language"
+          desc={`Currently: ${LANG_NATIVE[lang] || lang.toUpperCase()} · tap to change`}
+          onPress={openLanguagePicker}
         />
 
         {/* ── Operations Console — internal MVP testing ────────────── */}

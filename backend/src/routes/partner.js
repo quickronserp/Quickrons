@@ -16,6 +16,7 @@ const express      = require('express');
 const prisma       = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken, requireRole } = require('../middleware/auth');
+const { uploadMw, storeImage, storageProvider } = require('../lib/upload');
 const {
   emitOrderConfirmed,
   emitOrderPreparing,
@@ -487,6 +488,50 @@ function serializeWallet(wallet) {
     })),
   };
 }
+
+// ─── Image upload ────────────────────────────────────────────────────────────
+//
+// POST /api/v1/partner/menu/upload  (multipart/form-data; field "file")
+//
+// Auth: PARTNER (already enforced above). Scoping: image is stored under the
+// partner's own folder so two partners can never overwrite each other.
+//
+// Returns:
+//   { url, provider, sizeBytes }   — clients save `url` into MenuItem.imageUrl
+//
+// Errors are explicit:
+//   400 "No file uploaded"
+//   400 "Unsupported file type"
+//   400 "File too large"
+//   500 if multer/cloudinary isn't installed (the lib/upload stub fires this)
+
+router.post('/menu/upload', uploadMw, asyncH(async (req, res) => {
+  // multer's fileFilter rejects unsupported MIME → fileFilter error surfaces here.
+  if (!req.file) throw BadRequest('No file uploaded — send multipart with field "file"');
+
+  const { buffer, mimetype, originalname } = req.file;
+
+  let stored;
+  try {
+    stored = await storeImage({
+      buffer,
+      mimeType:   mimetype,
+      ownerId:    req.partner.id,
+      sourceName: originalname,
+    });
+  } catch (e) {
+    // Convert storage errors into user-actionable 400s.
+    throw BadRequest(e.message || 'Upload failed');
+  }
+
+  res.status(201).json({
+    url:           stored.url,
+    provider:      stored.provider,
+    sizeBytes:     stored.sizeBytes,
+    mimeType:      stored.mimeType,
+    storageHint:   storageProvider,                  // 'cloudinary' | 'local'
+  });
+}));
 
 // ─── Menu management (partner self-serve CRUD) ───────────────────────────────
 //

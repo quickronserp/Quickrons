@@ -47,6 +47,18 @@ app.use('/api/v1/admin',     adminRoutes);
 // Admin dashboard (single static HTML file served from backend/admin/).
 app.use('/admin', express.static(path.join(__dirname, '..', 'admin')));
 
+// Local-disk uploads (partner menu photos when CLOUDINARY_URL is not set).
+// Served with permissive caching — these files are content-addressed by random
+// filename, so they're effectively immutable. On Cloudinary deployments this
+// static mount is harmless (no files land in ./uploads).
+app.use(
+  '/uploads',
+  express.static(path.join(__dirname, '..', 'uploads'), {
+    maxAge: '7d',
+    fallthrough: true,
+  }),
+);
+
 // 404 + central error handler — always last.
 app.use(notFoundHandler);
 app.use(errorHandler);

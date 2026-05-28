@@ -60,21 +60,48 @@ export default function PartnerOpsScreen({ navigation }) {
   const [sealCodes, setSealCodes] = useState({});          // { [orderId]: '123456' }
   const [rejectInput, setRejectInput] = useState({});      // { [orderId]: text }
   const [error, setError] = useState(null);
+  // Today summary — derived from the most-recent DELIVERED orders, filtered to
+  // today's calendar date. Refreshes on every poll alongside the active list.
+  const [todayStats, setTodayStats] = useState({ count: 0, grossPaise: 0 });
   const pollRef = useRef(null);
 
   const fetchOrders = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      // Fetch all active orders for this partner
+      // Two parallel fetches: the visible list AND today's DELIVERED orders
+      // (for the summary tile). The DELIVERED fetch is cheap — capped at 50
+      // by the backend — and filtered to today's calendar date in JS.
       const statusFilter = tab === 'active' ? undefined : 'DELIVERED';
-      const res = await partnerApi.orders(accessToken, statusFilter);
-      const all = res.orders || [];
-      if (tab === 'active') {
-        setOrders(all.filter(o => ACTIVE_STATUSES.includes(o.status)));
-      } else {
-        setOrders(all);
+
+      const [listRes, deliveredRes] = await Promise.allSettled([
+        partnerApi.orders(accessToken, statusFilter),
+        // Don't double-fetch if we're already on the done tab
+        tab === 'done'
+          ? Promise.resolve(null)
+          : partnerApi.orders(accessToken, 'DELIVERED'),
+      ]);
+
+      if (listRes.status === 'fulfilled') {
+        const all = listRes.value.orders || [];
+        if (tab === 'active') {
+          setOrders(all.filter(o => ACTIVE_STATUSES.includes(o.status)));
+        } else {
+          setOrders(all);
+        }
+      } else if (listRes.status === 'rejected') {
+        throw listRes.reason;
       }
+
+      // Compute today's summary from whichever response carries DELIVERED data.
+      const deliveredOrders =
+        (deliveredRes.status === 'fulfilled' && deliveredRes.value?.orders) ||
+        (tab === 'done' && listRes.status === 'fulfilled' ? listRes.value.orders : []) ||
+        [];
+      const todayKey = new Date().toDateString();
+      const todays = deliveredOrders.filter(o => new Date(o.createdAt).toDateString() === todayKey);
+      const grossPaise = todays.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0);
+      setTodayStats({ count: todays.length, grossPaise });
     } catch (e) {
       setError(e.message || 'Failed to load orders');
     } finally {
@@ -279,6 +306,28 @@ export default function PartnerOpsScreen({ navigation }) {
         </Pressable>
       </View>
 
+      {/* Today summary — orders count + revenue today */}
+      <View style={styles.todayCard}>
+        <View style={styles.todayCell}>
+          <Text style={styles.todayValue}>{todayStats.count}</Text>
+          <Text style={styles.todayLabel}>Orders today</Text>
+        </View>
+        <View style={styles.todayDivider} />
+        <View style={styles.todayCell}>
+          <Text style={styles.todayValue}>{paise(todayStats.grossPaise)}</Text>
+          <Text style={styles.todayLabel}>Revenue today</Text>
+        </View>
+        <View style={styles.todayDivider} />
+        <View style={styles.todayCell}>
+          <Text style={styles.todayValue}>
+            {todayStats.count > 0
+              ? paise(Math.round(todayStats.grossPaise / todayStats.count))
+              : '—'}
+          </Text>
+          <Text style={styles.todayLabel}>Avg order</Text>
+        </View>
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabs}>
         {['active', 'done'].map(t => (
@@ -398,6 +447,16 @@ const styles = StyleSheet.create({
   sectionCount: { color: colors.brand },
   sectionHint:  { fontSize: 11, color: colors.inkMuted, marginLeft: 'auto' },
   sectionEmpty: { fontSize: 13, color: colors.inkMuted, paddingVertical: 6 },
+
+  todayCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingVertical: 14, paddingHorizontal: space.md,
+  },
+  todayCell:    { flex: 1, alignItems: 'center', gap: 2 },
+  todayDivider: { width: 1, height: 28, backgroundColor: colors.border },
+  todayValue:   { fontSize: 18, fontWeight: '900', color: colors.brand },
+  todayLabel:   { fontSize: 10, fontWeight: '700', color: colors.inkMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
   tabs: {
     flexDirection: 'row', backgroundColor: colors.bg,
     borderBottomWidth: 1, borderBottomColor: colors.border,
