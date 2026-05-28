@@ -84,8 +84,11 @@ export default function RiderOpsScreen({ navigation }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Faster polling for dispatch — the rider needs to see new available orders
+  // and status changes promptly. 7s strikes the balance between freshness
+  // and server load given socket updates are the primary push channel.
   useEffect(() => {
-    pollRef.current = setInterval(() => fetchAll(true), 10_000);
+    pollRef.current = setInterval(() => fetchAll(true), 7_000);
     return () => clearInterval(pollRef.current);
   }, [fetchAll]);
 
@@ -408,7 +411,7 @@ export default function RiderOpsScreen({ navigation }) {
                 <View style={styles.emptyBox}>
                   <Ionicons name="time-outline" size={32} color={colors.inkMuted} />
                   <Text style={styles.emptyTxt}>Waiting for new orders…</Text>
-                  <Text style={styles.emptyHint}>Auto-refreshes every 10 seconds</Text>
+                  <Text style={styles.emptyHint}>Auto-refreshes every 7 seconds</Text>
                 </View>
               )}
             </>
@@ -494,7 +497,7 @@ const styles = StyleSheet.create({
     letterSpacing: 6, textAlign: 'center', backgroundColor: colors.bgAlt,
   },
   sealVerifyBtn: {
-    backgroundColor: '#7C3AED', paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: colors.brand, paddingHorizontal: 16, paddingVertical: 10,
     borderRadius: radii.sm, justifyContent: 'center',
   },
   sealVerifyTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },

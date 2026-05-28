@@ -22,10 +22,24 @@ import { colors, radii, space } from '../theme';
 
 const ACTIVE_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'];
 
+// Section grouping for the dashboard board — explicit phase per status.
+const STATUS_SECTION = {
+  PLACED:           'new',
+  CONFIRMED:        'preparing',
+  PREPARING:        'preparing',
+  READY_FOR_PICKUP: 'ready',
+};
+
+const SECTION_META = {
+  new:       { title: 'New orders',   subtitle: 'Tap to accept or reject', icon: 'notifications' },
+  preparing: { title: 'In the kitchen', subtitle: 'Confirmed & cooking',  icon: 'restaurant' },
+  ready:     { title: 'Ready for pickup', subtitle: 'Awaiting rider',     icon: 'cube' },
+};
+
 const STATUS_COLOR = {
   PLACED:           colors.accent,
   CONFIRMED:        colors.brand,
-  PREPARING:        '#7C3AED',
+  PREPARING:        colors.brand,
   READY_FOR_PICKUP: colors.success,
   PICKED_UP:        colors.inkSoft,
   DELIVERED:        colors.inkMuted,
@@ -219,7 +233,7 @@ export default function PartnerOpsScreen({ navigation }) {
             <ActionBtn
               label="Seal Package"
               icon="lock-closed"
-              color="#7C3AED"
+              color={colors.brand}
               busy={busy}
               onPress={() => doAction(order.id, () => partnerApi.seal(order.id, accessToken))}
             />
@@ -253,6 +267,13 @@ export default function PartnerOpsScreen({ navigation }) {
             {user?.name || user?.fullName || user?.phone}
           </Text>
         </View>
+        <Pressable
+          onPress={() => navigation.navigate('PartnerMenu')}
+          style={styles.menuBtn}
+        >
+          <Ionicons name="restaurant" size={16} color={colors.brand} />
+          <Text style={styles.menuBtnTxt}>Menu</Text>
+        </Pressable>
         <Pressable onPress={onRefresh} style={styles.refreshBtn}>
           <Ionicons name="refresh" size={20} color={colors.brand} />
         </Pressable>
@@ -296,7 +317,38 @@ export default function PartnerOpsScreen({ navigation }) {
           contentContainerStyle={{ padding: space.md }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
         >
-          {orders.map(renderOrderCard)}
+          {tab === 'active' ? (
+            // Group active orders into operational phases.
+            (() => {
+              const groups = { new: [], preparing: [], ready: [] };
+              for (const o of orders) {
+                const sec = STATUS_SECTION[o.status];
+                if (sec) groups[sec].push(o);
+              }
+              return ['new', 'preparing', 'ready'].map(secKey => {
+                const meta  = SECTION_META[secKey];
+                const list  = groups[secKey];
+                return (
+                  <View key={secKey} style={{ marginBottom: space.lg }}>
+                    <View style={styles.sectionHead}>
+                      <Ionicons name={meta.icon} size={14} color={colors.inkSoft} />
+                      <Text style={styles.sectionTitle}>
+                        {meta.title}
+                        <Text style={styles.sectionCount}>  {list.length}</Text>
+                      </Text>
+                      <Text style={styles.sectionHint}>{meta.subtitle}</Text>
+                    </View>
+                    {list.length === 0
+                      ? <Text style={styles.sectionEmpty}>—</Text>
+                      : list.map(renderOrderCard)
+                    }
+                  </View>
+                );
+              });
+            })()
+          ) : (
+            orders.map(renderOrderCard)
+          )}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -329,6 +381,23 @@ const styles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '800', color: colors.ink },
   subtitle: { fontSize: 12, color: colors.inkSoft, marginTop: 1 },
   refreshBtn: { padding: 8 },
+  menuBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.sm,
+    borderWidth: 1, borderColor: colors.brand + '40', backgroundColor: colors.brandTint,
+  },
+  menuBtnTxt: { fontSize: 12, fontWeight: '800', color: colors.brand },
+  sectionHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 6, marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 13, fontWeight: '800', color: colors.ink,
+    textTransform: 'uppercase', letterSpacing: 0.6,
+  },
+  sectionCount: { color: colors.brand },
+  sectionHint:  { fontSize: 11, color: colors.inkMuted, marginLeft: 'auto' },
+  sectionEmpty: { fontSize: 13, color: colors.inkMuted, paddingVertical: 6 },
   tabs: {
     flexDirection: 'row', backgroundColor: colors.bg,
     borderBottomWidth: 1, borderBottomColor: colors.border,

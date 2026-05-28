@@ -277,8 +277,15 @@ export default function TrackingScreen({ route, navigation }) {
               <Text style={styles.verifyTitle}>Verify Delivery Code</Text>
             </View>
             <Text style={styles.verifyHint}>
-              The rider is at your door. Enter the 6-digit code from the sealed bag to confirm delivery.
+              The rider is on the way to you. When the rider arrives, check the bag's tamper seal —
+              if it's intact and the food is in your hand, enter the 6-digit code below to confirm delivery.
             </Text>
+            <View style={styles.warningBox}>
+              <Ionicons name="warning" size={14} color={colors.brand} />
+              <Text style={styles.warningTxt}>
+                Share this code only after receiving food. Never give it before.
+              </Text>
+            </View>
             <View style={styles.verifyRow}>
               <TextInput
                 style={styles.verifyInput}
@@ -419,4 +426,10 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm, justifyContent: 'center',
   },
   verifyBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  warningBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.brand + '15', borderWidth: 1, borderColor: colors.brand + '40',
+    borderRadius: radii.sm, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10,
+  },
+  warningTxt: { flex: 1, fontSize: 12, color: colors.brand, fontWeight: '700', lineHeight: 16 },
 });

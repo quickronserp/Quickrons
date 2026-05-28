@@ -28,6 +28,7 @@ import PartnerOpsScreen        from './src/screens/PartnerOpsScreen';
 import RiderOpsScreen          from './src/screens/RiderOpsScreen';
 import AdminOpsScreen          from './src/screens/AdminOpsScreen';
 import LanguageSelectScreen    from './src/screens/LanguageSelectScreen';
+import PartnerMenuScreen       from './src/screens/PartnerMenuScreen';
 
 import { colors } from './src/theme';
 
@@ -135,7 +136,8 @@ function MainStack() {
 function PartnerStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="PartnerOps" component={PartnerOpsScreen} />
+      <Stack.Screen name="PartnerOps"  component={PartnerOpsScreen} />
+      <Stack.Screen name="PartnerMenu" component={PartnerMenuScreen} />
     </Stack.Navigator>
   );
 }

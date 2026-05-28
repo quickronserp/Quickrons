@@ -132,6 +132,22 @@ export const partnerApi = {
     request('/api/v1/partner/wallet', { token }),
 };
 
+// ─── Partner Menu (self-serve CRUD) ──────────────────────────────────────────
+//
+// All endpoints are scoped to the authenticated partner on the backend — no
+// partnerId argument is needed or accepted from the client.
+
+export const partnerMenuApi = {
+  list:   (token) =>
+    request('/api/v1/partner/menu', { token }),
+  create: (body, token) =>
+    request('/api/v1/partner/menu', { method: 'POST', body, token }),
+  update: (id, body, token) =>
+    request(`/api/v1/partner/menu/${id}`, { method: 'PATCH', body, token }),
+  remove: (id, token) =>
+    request(`/api/v1/partner/menu/${id}`, { method: 'DELETE', token }),
+};
+
 // ─── Rider Ops ────────────────────────────────────────────────────────────────
 
 export const riderOpsApi = {
@@ -174,4 +190,6 @@ export const adminApi = {
     request('/api/v1/admin/riders',    { token }),
   cancelOrder: (id, reason, token) =>
     request(`/api/v1/admin/orders/${id}/cancel`, { method: 'POST', body: { reason }, token }),
+  stuckOrders: (token) =>
+    request('/api/v1/admin/orders/stuck', { token }),
 };

@@ -488,6 +488,191 @@ function serializeWallet(wallet) {
   };
 }
 
+// ─── Menu management (partner self-serve CRUD) ───────────────────────────────
+//
+// All routes scoped to req.partner.id via loadPartner middleware above —
+// a partner can never see or modify another partner's menu.
+//
+// GET    /api/v1/partner/menu             → list own items (active + inactive)
+// POST   /api/v1/partner/menu             → create
+// PATCH  /api/v1/partner/menu/:id         → update (partial)
+// DELETE /api/v1/partner/menu/:id         → soft delete (active=false)
+
+const MENU_ITEM_SELECT = {
+  id:                     true,
+  name:                   true,
+  description:            true,
+  pricePaise:             true,
+  isVeg:                  true,
+  signature:              true,
+  active:                 true,
+  sortOrder:              true,
+  category:               true,
+  imageUrl:               true,
+  dailyQuantityLimit:     true,
+  dailyQuantityRemaining: true,
+  servingStartMinutes:    true,
+  servingEndMinutes:      true,
+  createdAt:              true,
+  updatedAt:              true,
+};
+
+// Field validators — return the cleaned value or throw BadRequest.
+// Keep validation conservative; we only accept fields that exist in the schema.
+function cleanString(v, field, { max = 200, allowEmpty = false } = {}) {
+  if (typeof v !== 'string') throw BadRequest(`${field} must be a string`);
+  const trimmed = v.trim();
+  if (!allowEmpty && trimmed === '') throw BadRequest(`${field} cannot be empty`);
+  if (trimmed.length > max) throw BadRequest(`${field} must be ${max} chars or fewer`);
+  return trimmed;
+}
+
+function cleanInt(v, field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) throw BadRequest(`${field} must be an integer`);
+  if (n < min || n > max) throw BadRequest(`${field} must be between ${min} and ${max}`);
+  return n;
+}
+
+function cleanOptionalInt(v, field, opts) {
+  if (v === null || v === undefined || v === '') return null;
+  return cleanInt(v, field, opts);
+}
+
+function cleanOptionalString(v, field, opts) {
+  if (v === null || v === undefined || v === '') return null;
+  return cleanString(v, field, { ...opts, allowEmpty: false });
+}
+
+function cleanBool(v, field) {
+  if (typeof v !== 'boolean') throw BadRequest(`${field} must be a boolean`);
+  return v;
+}
+
+// GET /menu — list own items (newest first within active group)
+router.get('/menu', asyncH(async (req, res) => {
+  const items = await prisma.menuItem.findMany({
+    where:   { partnerId: req.partner.id },
+    orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
+    select:  MENU_ITEM_SELECT,
+  });
+  res.json({ items });
+}));
+
+// POST /menu — create a new item under this partner
+router.post('/menu', asyncH(async (req, res) => {
+  const b = req.body || {};
+
+  // Required
+  const name        = cleanString(b.name,        'name', { max: 120 });
+  const description = cleanString(b.description, 'description', { max: 500 });
+  const pricePaise  = cleanInt(b.pricePaise, 'pricePaise', { min: 0, max: 1_000_000_00 }); // ≤ ₹1Cr
+
+  // Optional with sensible defaults
+  const isVeg       = b.isVeg     === undefined ? true  : cleanBool(b.isVeg,     'isVeg');
+  const signature   = b.signature === undefined ? false : cleanBool(b.signature, 'signature');
+  const active      = b.active    === undefined ? true  : cleanBool(b.active,    'active');
+  const sortOrder   = b.sortOrder === undefined ? 0     : cleanInt(b.sortOrder,  'sortOrder', { min: 0, max: 9999 });
+  const category    = cleanOptionalString(b.category, 'category', { max: 60 });
+  const imageUrl    = cleanOptionalString(b.imageUrl, 'imageUrl', { max: 500 });
+  const dailyQuantityLimit = cleanOptionalInt(b.dailyQuantityLimit, 'dailyQuantityLimit', { min: 0, max: 10_000 });
+  const servingStartMinutes = cleanOptionalInt(b.servingStartMinutes, 'servingStartMinutes', { min: 0, max: 24 * 60 - 1 });
+  const servingEndMinutes   = cleanOptionalInt(b.servingEndMinutes,   'servingEndMinutes',   { min: 0, max: 24 * 60 - 1 });
+  if (
+    servingStartMinutes !== null && servingEndMinutes !== null &&
+    servingStartMinutes >= servingEndMinutes
+  ) {
+    throw BadRequest('servingStartMinutes must be earlier than servingEndMinutes');
+  }
+
+  const item = await prisma.menuItem.create({
+    data: {
+      partnerId: req.partner.id,
+      name, description, pricePaise,
+      isVeg, signature, active, sortOrder,
+      category, imageUrl,
+      dailyQuantityLimit,
+      dailyQuantityRemaining: dailyQuantityLimit, // start full
+      servingStartMinutes, servingEndMinutes,
+      lastResetAt: new Date(),
+    },
+    select: MENU_ITEM_SELECT,
+  });
+  res.status(201).json({ item });
+}));
+
+// PATCH /menu/:id — partial update on an item the partner owns
+// Ownership is enforced by including partnerId in the update's where filter.
+// Prisma throws P2025 if the row doesn't match → 404.
+router.patch('/menu/:id', asyncH(async (req, res) => {
+  const b = req.body || {};
+  const data = {};
+
+  if (b.name        !== undefined) data.name        = cleanString(b.name,        'name', { max: 120 });
+  if (b.description !== undefined) data.description = cleanString(b.description, 'description', { max: 500 });
+  if (b.pricePaise  !== undefined) data.pricePaise  = cleanInt(b.pricePaise,  'pricePaise', { min: 0, max: 1_000_000_00 });
+  if (b.isVeg       !== undefined) data.isVeg       = cleanBool(b.isVeg,       'isVeg');
+  if (b.signature   !== undefined) data.signature   = cleanBool(b.signature,   'signature');
+  if (b.active      !== undefined) data.active      = cleanBool(b.active,      'active');
+  if (b.sortOrder   !== undefined) data.sortOrder   = cleanInt(b.sortOrder,   'sortOrder', { min: 0, max: 9999 });
+  if (b.category    !== undefined) data.category    = cleanOptionalString(b.category, 'category', { max: 60 });
+  if (b.imageUrl    !== undefined) data.imageUrl    = cleanOptionalString(b.imageUrl, 'imageUrl', { max: 500 });
+  if (b.dailyQuantityLimit !== undefined) {
+    data.dailyQuantityLimit = cleanOptionalInt(b.dailyQuantityLimit, 'dailyQuantityLimit', { min: 0, max: 10_000 });
+    // When the cap changes, reset "remaining" to the new cap so the kitchen
+    // doesn't end up with remaining > limit. Partners adjusting the cap is
+    // an explicit reset action by design.
+    data.dailyQuantityRemaining = data.dailyQuantityLimit;
+  }
+  if (b.servingStartMinutes !== undefined) data.servingStartMinutes = cleanOptionalInt(b.servingStartMinutes, 'servingStartMinutes', { min: 0, max: 24 * 60 - 1 });
+  if (b.servingEndMinutes   !== undefined) data.servingEndMinutes   = cleanOptionalInt(b.servingEndMinutes,   'servingEndMinutes',   { min: 0, max: 24 * 60 - 1 });
+
+  if (Object.keys(data).length === 0) throw BadRequest('Provide at least one field to update');
+
+  // Cross-field check after merge (load existing values if needed).
+  if (data.servingStartMinutes !== undefined || data.servingEndMinutes !== undefined) {
+    const cur = await prisma.menuItem.findFirst({
+      where:  { id: req.params.id, partnerId: req.partner.id },
+      select: { servingStartMinutes: true, servingEndMinutes: true },
+    });
+    if (!cur) throw NotFound('Menu item not found');
+    const start = data.servingStartMinutes ?? cur.servingStartMinutes;
+    const end   = data.servingEndMinutes   ?? cur.servingEndMinutes;
+    if (start != null && end != null && start >= end) {
+      throw BadRequest('servingStartMinutes must be earlier than servingEndMinutes');
+    }
+  }
+
+  try {
+    const item = await prisma.menuItem.update({
+      where:  { id: req.params.id, partnerId: req.partner.id },
+      data,
+      select: MENU_ITEM_SELECT,
+    });
+    res.json({ item });
+  } catch (err) {
+    if (err.code === 'P2025') throw NotFound('Menu item not found');
+    throw err;
+  }
+}));
+
+// DELETE /menu/:id — soft delete (active=false). Hard delete is blocked by
+// OrderItem foreign keys. Returns 200 with the updated row.
+router.delete('/menu/:id', asyncH(async (req, res) => {
+  try {
+    const item = await prisma.menuItem.update({
+      where:  { id: req.params.id, partnerId: req.partner.id },
+      data:   { active: false },
+      select: MENU_ITEM_SELECT,
+    });
+    res.json({ item });
+  } catch (err) {
+    if (err.code === 'P2025') throw NotFound('Menu item not found');
+    throw err;
+  }
+}));
+
+// ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────
 router.get('/wallet', asyncH(async (req, res) => {
   const wallet = await prisma.wallet.findUnique({
     where: { partnerId: req.partner.id },

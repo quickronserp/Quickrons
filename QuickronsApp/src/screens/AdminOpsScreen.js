@@ -46,6 +46,7 @@ export default function AdminOpsScreen({ navigation }) {
   const [wallets, setWallets]     = useState([]);
   const [partners, setPartners]   = useState([]);
   const [riders, setRiders]       = useState([]);
+  const [stuck, setStuck]         = useState(null);   // { totalCount, buckets, thresholds }
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState({});
@@ -57,18 +58,20 @@ export default function AdminOpsScreen({ navigation }) {
     if (!quiet) setLoading(true);
     setError(null);
     try {
-      const [ordRes, analRes, walRes, partRes, ridRes] = await Promise.allSettled([
+      const [ordRes, analRes, walRes, partRes, ridRes, stuckRes] = await Promise.allSettled([
         adminApi.orders(accessToken, statusFilter || undefined),
         adminApi.analytics(accessToken),
         adminApi.wallets(accessToken),
         adminApi.partners(accessToken),
         adminApi.riders(accessToken),
+        adminApi.stuckOrders(accessToken),
       ]);
-      if (ordRes.status === 'fulfilled')  setOrders(ordRes.value.orders || []);
-      if (analRes.status === 'fulfilled') setAnalytics(analRes.value);
-      if (walRes.status === 'fulfilled')  setWallets(walRes.value.wallets || []);
-      if (partRes.status === 'fulfilled') setPartners(partRes.value.partners || []);
-      if (ridRes.status === 'fulfilled')  setRiders(ridRes.value.riders || []);
+      if (ordRes.status === 'fulfilled')   setOrders(ordRes.value.orders || []);
+      if (analRes.status === 'fulfilled')  setAnalytics(analRes.value);
+      if (walRes.status === 'fulfilled')   setWallets(walRes.value.wallets || []);
+      if (partRes.status === 'fulfilled')  setPartners(partRes.value.partners || []);
+      if (ridRes.status === 'fulfilled')   setRiders(ridRes.value.riders || []);
+      if (stuckRes.status === 'fulfilled') setStuck(stuckRes.value);
 
       // Surface the most critical error
       const firstFail = [ordRes, analRes].find(r => r.status === 'rejected');
@@ -146,6 +149,48 @@ export default function AdminOpsScreen({ navigation }) {
 
     return (
       <ScrollView contentContainerStyle={{ padding: space.md }}>
+        {/* Stuck order alert — only when something needs attention */}
+        {stuck && stuck.totalCount > 0 && (
+          <View style={styles.stuckAlert}>
+            <View style={styles.stuckHead}>
+              <Ionicons name="warning" size={18} color={colors.danger} />
+              <Text style={styles.stuckTitle}>
+                {stuck.totalCount} stuck order{stuck.totalCount === 1 ? '' : 's'} need attention
+              </Text>
+            </View>
+            <StuckBucket
+              label="Partner hasn't accepted"
+              icon="time"
+              orders={stuck.buckets.unaccepted}
+              setFilter={() => setStatusFilter('PLACED')}
+            />
+            <StuckBucket
+              label="No rider claimed pickup"
+              icon="bicycle"
+              orders={stuck.buckets.unclaimed}
+              setFilter={() => setStatusFilter('READY_FOR_PICKUP')}
+            />
+            <StuckBucket
+              label="Out for delivery too long"
+              icon="walk"
+              orders={stuck.buckets.lingeringOnRoad}
+              setFilter={() => setStatusFilter('OUT_FOR_DELIVERY')}
+            />
+            <StuckBucket
+              label="Customer hasn't verified code"
+              icon="key"
+              orders={stuck.buckets.awaitingCustomer}
+              setFilter={() => setStatusFilter('PICKED_UP')}
+            />
+            <StuckBucket
+              label="Payment stuck pending"
+              icon="card"
+              orders={stuck.buckets.paymentStuck}
+              setFilter={() => setStatusFilter('')}
+            />
+          </View>
+        )}
+
         {/* Status filter */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -351,6 +396,20 @@ function EmptyState({ label }) {
   );
 }
 
+function StuckBucket({ label, icon, orders, setFilter }) {
+  if (!orders || orders.length === 0) return null;
+  return (
+    <Pressable onPress={setFilter} style={styles.stuckRow}>
+      <Ionicons name={icon} size={14} color={colors.danger} />
+      <Text style={styles.stuckLabel}>{label}</Text>
+      <View style={styles.stuckCountPill}>
+        <Text style={styles.stuckCountTxt}>{orders.length}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={14} color={colors.inkMuted} />
+    </Pressable>
+  );
+}
+
 function LoadingPlaceholder() {
   return (
     <View style={styles.centerWrap}>
@@ -423,4 +482,21 @@ const styles = StyleSheet.create({
   dotLabel: { fontSize: 11, color: colors.inkSoft, fontWeight: '600' },
   emptyBox: { alignItems: 'center', paddingVertical: space.xl, gap: 8 },
   emptyTxt: { fontSize: 14, fontWeight: '700', color: colors.inkSoft },
+
+  stuckAlert: {
+    backgroundColor: colors.danger + '10', borderRadius: radii.md, padding: space.md,
+    borderWidth: 1, borderColor: colors.danger + '40', marginBottom: space.md,
+  },
+  stuckHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  stuckTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: colors.danger, textTransform: 'uppercase', letterSpacing: 0.4 },
+  stuckRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 8, borderTopWidth: 1, borderTopColor: colors.danger + '20',
+  },
+  stuckLabel: { flex: 1, fontSize: 13, color: colors.ink, fontWeight: '600' },
+  stuckCountPill: {
+    minWidth: 24, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 999, backgroundColor: colors.danger, alignItems: 'center',
+  },
+  stuckCountTxt: { color: '#fff', fontWeight: '800', fontSize: 11 },
 });
