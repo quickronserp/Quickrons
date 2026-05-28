@@ -78,18 +78,26 @@ function buildPayload(form, isCreate) {
   return out;
 }
 
+// Returns null when the form is saveable, otherwise a short error string.
+// Used both for the inline hint and to gate the primary CTA.
 function validate(form) {
-  if (!form.name.trim()) return 'Item name is required';
-  if (!form.description.trim()) return 'Description is required';
+  const name = (form.name || '').trim();
+  const desc = (form.description || '').trim();
+  if (!name)          return 'Enter the item name to continue';
+  if (name.length < 2) return 'Item name is too short';
+  if (!desc)          return 'Add a short description so customers know what they\'re ordering';
   const paise = paiseFromRupeesString(form.pricePaise);
-  if (paise == null) return 'Price must be a positive number';
-  if (paise < 100)   return 'Price must be at least ₹1';
-  if (form.imageUrl && form.imageUrl.trim() && !/^https?:\/\//.test(form.imageUrl.trim())) {
-    return 'Image URL must start with http(s)://';
+  if (paise == null)  return 'Enter a price in ₹';
+  if (paise < 100)    return 'Price must be at least ₹1';
+  if (paise > 1_000_000_00) return 'Price exceeds the maximum (₹1,00,00,000)';
+  if (!form.category) return 'Pick a category';
+  const imgRaw = (form.imageUrl || '').trim();
+  if (imgRaw && !/^https?:\/\/\S+$/i.test(imgRaw)) {
+    return 'Image URL must start with http:// or https://';
   }
   if (String(form.dailyQuantityLimit).trim() !== '') {
     const q = Number(form.dailyQuantityLimit);
-    if (!Number.isFinite(q) || q < 0) return 'Daily quantity must be 0 or more';
+    if (!Number.isFinite(q) || q < 0) return 'Daily limit must be 0 or more (blank = unlimited)';
   }
   return null;
 }
@@ -194,18 +202,33 @@ export default function PartnerMenuScreen({ navigation }) {
   }
 
   // ── Editor view ──────────────────────────────────────────────────────────
+  //
+  // Layout contract (avoids previous bugs):
+  //   SafeAreaView (flex:1)
+  //   ├─ Header
+  //   └─ KeyboardAvoidingView (flex:1)
+  //       ├─ ScrollView (flex:1)   ← consumes remaining height
+  //       │   └─ Form (maxWidth:640, centered on web)
+  //       └─ BottomBar  (NOT absolute; sibling so it never overlaps fields)
+  //
+  // Validation is live-computed so the primary CTA disables when invalid.
 
   if (editing) {
-    const isCreate = !editing.id;
+    const isCreate    = !editing.id;
+    const validationError = validate(editing);
+    const isValid     = validationError === null;
+
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable onPress={cancelEdit} style={styles.iconBtn}>
             <Ionicons name="close" size={22} color={colors.ink} />
           </Pressable>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{isCreate ? 'New Item' : 'Edit Item'}</Text>
-            <Text style={styles.subtitle}>{isCreate ? 'Add a dish to your menu' : editing.name}</Text>
+            <Text style={styles.subtitle}>
+              {isCreate ? 'Add a dish to your menu' : editing.name || 'Untitled'}
+            </Text>
           </View>
         </View>
 
@@ -213,68 +236,72 @@ export default function PartnerMenuScreen({ navigation }) {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 140 }}>
-            {/* Image preview */}
-            <View style={styles.previewWrap}>
-              {editing.imageUrl ? (
-                <Image
-                  source={{ uri: editing.imageUrl }}
-                  style={styles.previewImg}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={[styles.previewImg, styles.previewEmpty]}>
-                  <Ionicons name="image-outline" size={40} color={colors.inkMuted} />
-                  <Text style={styles.previewEmptyTxt}>Image preview</Text>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.editorScroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+          >
+            {/* maxWidth wrapper — keeps the form readable on desktop web */}
+            <View style={styles.formCol}>
+
+              {/* 1. Item name */}
+              <Field
+                label="Item name"
+                required
+                value={editing.name}
+                onChangeText={t => setEditing(e => ({ ...e, name: t }))}
+                placeholder="e.g. Malabar Chicken Biryani"
+                maxLength={120}
+                autoFocus
+                returnKeyType="next"
+              />
+
+              {/* 2. Description */}
+              <Field
+                label="Description"
+                required
+                value={editing.description}
+                onChangeText={t => setEditing(e => ({ ...e, description: t }))}
+                placeholder="Short, appetising description shown on the customer card"
+                multiline
+                maxLength={500}
+                hint={`${editing.description.length}/500`}
+              />
+
+              {/* 3. Price + 4. Daily limit (side-by-side on wider screens) */}
+              <View style={styles.row2}>
+                <View style={{ flex: 1 }}>
+                  <Field
+                    label="Price (₹)"
+                    required
+                    value={editing.pricePaise}
+                    onChangeText={t => setEditing(e => ({ ...e, pricePaise: t.replace(/[^0-9.]/g, '') }))}
+                    placeholder="199"
+                    keyboardType="decimal-pad"
+                  />
                 </View>
-              )}
-            </View>
-
-            <Field
-              label="Item name"
-              required
-              value={editing.name}
-              onChangeText={t => setEditing(e => ({ ...e, name: t }))}
-              placeholder="e.g. Malabar Chicken Biryani"
-              maxLength={120}
-            />
-
-            <Field
-              label="Description"
-              required
-              value={editing.description}
-              onChangeText={t => setEditing(e => ({ ...e, description: t }))}
-              placeholder="Short, appetising description (max 500 chars)"
-              multiline
-              maxLength={500}
-            />
-
-            <View style={styles.row2}>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Price (₹)"
-                  required
-                  value={editing.pricePaise}
-                  onChangeText={t => setEditing(e => ({ ...e, pricePaise: t.replace(/[^0-9.]/g, '') }))}
-                  placeholder="199"
-                  keyboardType="decimal-pad"
-                />
+                <View style={{ flex: 1 }}>
+                  <Field
+                    label="Daily limit"
+                    value={editing.dailyQuantityLimit}
+                    onChangeText={t => setEditing(e => ({ ...e, dailyQuantityLimit: t.replace(/[^0-9]/g, '') }))}
+                    placeholder="Unlimited"
+                    keyboardType="number-pad"
+                    hint="Blank = unlimited"
+                  />
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Field
-                  label="Daily limit"
-                  value={editing.dailyQuantityLimit}
-                  onChangeText={t => setEditing(e => ({ ...e, dailyQuantityLimit: t.replace(/[^0-9]/g, '') }))}
-                  placeholder="Unlimited"
-                  keyboardType="number-pad"
-                  hint="Leave blank for unlimited"
-                />
-              </View>
-            </View>
 
-            <Text style={styles.label}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: space.md }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              {/* 5. Category */}
+              <Text style={styles.label}>Category</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: space.md, flexGrow: 0 }}
+                contentContainerStyle={{ flexDirection: 'row', gap: 8, paddingRight: 8 }}
+                keyboardShouldPersistTaps="handled"
+              >
                 {CATEGORIES.map(c => {
                   const active = editing.category === c;
                   return (
@@ -286,54 +313,89 @@ export default function PartnerMenuScreen({ navigation }) {
                     </Pressable>
                   );
                 })}
+              </ScrollView>
+
+              {/* 6. Image URL */}
+              <Field
+                label="Image URL"
+                value={editing.imageUrl}
+                onChangeText={t => setEditing(e => ({ ...e, imageUrl: t }))}
+                placeholder="https://… (paste a hosted image URL)"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                hint="Tip: Cloudinary, Imgur, Unsplash, or any public HTTPS URL"
+              />
+
+              {/* 7. Live image preview — capped height so it never eats the viewport */}
+              <View style={styles.previewWrap}>
+                {editing.imageUrl ? (
+                  <Image
+                    source={{ uri: editing.imageUrl }}
+                    style={styles.previewImg}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.previewImg, styles.previewEmpty]}>
+                    <Ionicons name="image-outline" size={30} color={colors.inkMuted} />
+                    <Text style={styles.previewEmptyTxt}>Live image preview</Text>
+                  </View>
+                )}
               </View>
-            </ScrollView>
 
-            <Field
-              label="Image URL"
-              value={editing.imageUrl}
-              onChangeText={t => setEditing(e => ({ ...e, imageUrl: t }))}
-              placeholder="https://… (paste a hosted image URL)"
-              keyboardType="url"
-              autoCapitalize="none"
-              hint="Use a Cloudinary, S3, or Unsplash URL"
-            />
+              {/* 8-10. Toggles */}
+              <ToggleRow
+                label="Vegetarian"
+                icon="leaf"
+                value={editing.isVeg}
+                onValueChange={v => setEditing(e => ({ ...e, isVeg: v }))}
+              />
+              <ToggleRow
+                label="Signature dish (highlighted on storefront)"
+                icon="star"
+                value={editing.signature}
+                onValueChange={v => setEditing(e => ({ ...e, signature: v }))}
+              />
+              <ToggleRow
+                label="Available now"
+                icon="checkmark-circle"
+                value={editing.active}
+                onValueChange={v => setEditing(e => ({ ...e, active: v }))}
+              />
 
-            <ToggleRow
-              label="Vegetarian"
-              icon="leaf"
-              value={editing.isVeg}
-              onValueChange={v => setEditing(e => ({ ...e, isVeg: v }))}
-            />
-            <ToggleRow
-              label="Signature dish (highlighted)"
-              icon="star"
-              value={editing.signature}
-              onValueChange={v => setEditing(e => ({ ...e, signature: v }))}
-            />
-            <ToggleRow
-              label="Available now"
-              icon="checkmark-circle"
-              value={editing.active}
-              onValueChange={v => setEditing(e => ({ ...e, active: v }))}
-            />
+              {/* Inline validation — visible whenever the form is incomplete */}
+              {validationError && (
+                <View style={styles.inlineError}>
+                  <Ionicons name="information-circle" size={14} color={colors.brand} />
+                  <Text style={styles.inlineErrorTxt}>{validationError}</Text>
+                </View>
+              )}
+            </View>
           </ScrollView>
 
+          {/* Bottom bar — sibling, NOT absolute. Never overlaps fields. */}
           <View style={styles.bottomBar}>
             <Pressable onPress={cancelEdit} style={[styles.btn, styles.btnGhost]}>
               <Text style={styles.btnGhostTxt}>Cancel</Text>
             </Pressable>
             <Pressable
               onPress={save}
-              disabled={saving}
-              style={[styles.btn, styles.btnPrimary, saving && { opacity: 0.5 }]}>
-              {saving
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <>
-                    <Ionicons name="save" size={16} color="#fff" />
-                    <Text style={styles.btnPrimaryTxt}>{isCreate ? 'Add item' : 'Save changes'}</Text>
-                  </>
-              }
+              disabled={saving || !isValid}
+              style={[
+                styles.btn,
+                styles.btnPrimary,
+                (saving || !isValid) && styles.btnPrimaryDisabled,
+              ]}>
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="save" size={16} color="#fff" />
+                  <Text style={styles.btnPrimaryTxt}>
+                    {isCreate ? 'Add item' : 'Save changes'}
+                  </Text>
+                </>
+              )}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
@@ -543,13 +605,45 @@ const styles = StyleSheet.create({
   actBtnTxt: { fontSize: 12, fontWeight: '800', color: colors.brand },
 
   // ── Editor ────────────────────────────────────────────────────────────────
-  previewWrap: { alignItems: 'center', marginBottom: space.lg },
+  editorScroll: {
+    // Loose padding so the form breathes; flexGrow ensures the content area
+    // stretches even when fields are sparse.
+    padding: space.lg,
+    paddingBottom: space.xl,
+    flexGrow: 1,
+  },
+  formCol: {
+    // Cap width on desktop web — keeps the form readable instead of a
+    // ridiculous 1200px-wide input. alignSelf centers it inside the ScrollView.
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+  },
+  previewWrap: {
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: space.lg,
+  },
   previewImg:  {
-    width: '100%', aspectRatio: 16 / 9, borderRadius: radii.md,
+    // Fixed height (not aspectRatio) so this block can NEVER eat the viewport
+    // on a wide browser. 200 px fits comfortably above the fold on mobile too.
+    width: '100%',
+    height: 200,
+    borderRadius: radii.md,
     backgroundColor: colors.bgAlt,
   },
   previewEmpty: { alignItems: 'center', justifyContent: 'center', gap: 6 },
   previewEmptyTxt: { color: colors.inkMuted, fontSize: 12, fontWeight: '600' },
+
+  inlineError: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.brand + '10',
+    borderWidth: 1, borderColor: colors.brand + '40',
+    borderRadius: radii.sm,
+    paddingHorizontal: 12, paddingVertical: 10,
+    marginTop: space.sm, marginBottom: space.sm,
+  },
+  inlineErrorTxt: { flex: 1, fontSize: 12, color: colors.brand, fontWeight: '700' },
 
   label: {
     fontSize: 11, fontWeight: '800', color: colors.inkSoft,
@@ -579,10 +673,11 @@ const styles = StyleSheet.create({
   },
   toggleLabel: { flex: 1, fontSize: 14, color: colors.inkSoft, fontWeight: '600' },
 
+  // Bottom bar is now a flex sibling of the ScrollView — no absolute positioning.
+  // ScrollView consumes remaining height; this row pins to the bottom naturally.
   bottomBar: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', gap: 10,
-    paddingHorizontal: space.lg, paddingVertical: space.md, paddingBottom: space.lg,
+    paddingHorizontal: space.lg, paddingVertical: space.md,
     backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.border,
   },
   btn: {
@@ -592,5 +687,7 @@ const styles = StyleSheet.create({
   btnGhost:    { backgroundColor: colors.bgAlt, borderWidth: 1, borderColor: colors.border },
   btnGhostTxt: { color: colors.inkSoft, fontWeight: '800', fontSize: 14 },
   btnPrimary:  { backgroundColor: colors.brand },
+  // Distinct disabled style so the user can SEE the button is gated on validation
+  btnPrimaryDisabled: { backgroundColor: colors.inkMuted, opacity: 0.85 },
   btnPrimaryTxt:{ color: '#fff', fontWeight: '800', fontSize: 14 },
 });
