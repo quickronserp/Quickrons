@@ -1,26 +1,37 @@
-// Web-only persistence wrapper.
-// On web: uses window.localStorage. On native: no-op (sessions don't persist).
-// AsyncStorage can be added later when native dev begins — no SDK-coupled native
-// modules are imported here, so this file is bundle-safe on every Expo platform.
+// Cross-platform key-value persistence.
+// Web   : window.localStorage (unchanged behaviour)
+// Native: expo-secure-store  → iOS Keychain / Android Keystore (hardware-backed)
+//
+// Public API: getItem / setItem / removeItem — all async.
+// AuthContext and I18nProvider already await every call; no call-site changes needed.
 import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
-const canUseLS =
+const IS_WEB =
   Platform.OS === 'web' &&
   typeof window !== 'undefined' &&
   typeof window.localStorage !== 'undefined';
 
 export async function setItem(key, value) {
-  if (!canUseLS) return;
   if (value == null) return removeItem(key);
-  try { window.localStorage.setItem(key, value); } catch {}
+  if (IS_WEB) {
+    try { window.localStorage.setItem(key, value); } catch {}
+  } else {
+    await SecureStore.setItemAsync(key, value);
+  }
 }
 
 export async function getItem(key) {
-  if (!canUseLS) return null;
-  try { return window.localStorage.getItem(key); } catch { return null; }
+  if (IS_WEB) {
+    try { return window.localStorage.getItem(key); } catch { return null; }
+  }
+  return SecureStore.getItemAsync(key);
 }
 
 export async function removeItem(key) {
-  if (!canUseLS) return;
-  try { window.localStorage.removeItem(key); } catch {}
+  if (IS_WEB) {
+    try { window.localStorage.removeItem(key); } catch {}
+  } else {
+    await SecureStore.deleteItemAsync(key);
+  }
 }
