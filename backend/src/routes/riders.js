@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma  = require('../prisma');
 const { asyncH, BadRequest } = require('../error');
+const { verifyToken, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -21,8 +22,8 @@ router.post('/apply', asyncH(async (req, res) => {
   res.status(201).json({ application: app });
 }));
 
-// GET /api/v1/riders/applications  (lightweight ops list)
-router.get('/applications', asyncH(async (_req, res) => {
+// GET /api/v1/riders/applications  (admin only)
+router.get('/applications', verifyToken, requireRole('ADMIN'), asyncH(async (_req, res) => {
   const applications = await prisma.riderApplication.findMany({
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -31,7 +32,7 @@ router.get('/applications', asyncH(async (_req, res) => {
 }));
 
 // POST /api/v1/riders/applications/:id/status  { status: APPROVED | REJECTED | PENDING }
-router.post('/applications/:id/status', asyncH(async (req, res) => {
+router.post('/applications/:id/status', verifyToken, requireRole('ADMIN'), asyncH(async (req, res) => {
   const { status } = req.body || {};
   if (!['APPROVED', 'REJECTED', 'PENDING'].includes(status)) {
     throw BadRequest('Status must be APPROVED, REJECTED, or PENDING');

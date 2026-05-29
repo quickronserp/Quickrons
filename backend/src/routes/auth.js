@@ -1,20 +1,49 @@
+const crypto  = require('crypto');
 const express = require('express');
 const jwt     = require('jsonwebtoken');
 const prisma  = require('../prisma');
 const { asyncH, BadRequest, Unauthorized } = require('../error');
 const { verifyToken } = require('../middleware/auth');
 
-const router = express.Router();
+const router  = express.Router();
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DEV_OTP          = '123456';
-const OTP_TTL_MS       = 5 * 60 * 1000;           // 5 minutes
+const OTP_TTL_MS = 5 * 60 * 1000;   // 5 minutes
 
-const JWT_SECRET         = process.env.JWT_SECRET         || 'dev-secret-change-in-prod';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret-change-in-prod';
-const ACCESS_TOKEN_TTL   = '15m';
-const REFRESH_TOKEN_TTL  = '7d';
+// Known dev-default values. If either appears in production the server refuses to start.
+const JWT_SECRET_DEV_DEFAULT         = 'dev-secret-change-in-prod';
+const JWT_REFRESH_SECRET_DEV_DEFAULT = 'dev-refresh-secret-change-in-prod';
+
+const JWT_SECRET         = process.env.JWT_SECRET         || JWT_SECRET_DEV_DEFAULT;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || JWT_REFRESH_SECRET_DEV_DEFAULT;
+
+// P0-B: Refuse to start in production with weak or missing JWT secrets.
+// This causes an immediate startup crash (visible in Railway deploy logs) rather than
+// silently running with a publicly known signing key.
+if (IS_PROD) {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === JWT_SECRET_DEV_DEFAULT) {
+    throw new Error('[auth] JWT_SECRET must be set to a strong random value in production. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
+  }
+  if (!process.env.JWT_REFRESH_SECRET || process.env.JWT_REFRESH_SECRET === JWT_REFRESH_SECRET_DEV_DEFAULT) {
+    throw new Error('[auth] JWT_REFRESH_SECRET must be set to a strong random value in production. ' +
+      'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"');
+  }
+}
+
+const ACCESS_TOKEN_TTL  = '15m';
+const REFRESH_TOKEN_TTL = '7d';
+
+// P0-A: OTP generation — random in production, fixed '123456' in development only.
+// Production: crypto.randomInt gives a uniform 6-digit code. SMS dispatch (MSG91)
+// is a P1 follow-up; until then the code is logged server-side for manual ops use.
+// The code is NEVER returned in the HTTP response on any environment.
+function generateOtp() {
+  if (!IS_PROD) return '123456';
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,11 +61,17 @@ router.post('/send-otp', asyncH(async (req, res) => {
   const { phone, role = 'CUSTOMER' } = req.body || {};
   if (!/^\d{10}$/.test(String(phone || ''))) throw BadRequest('Invalid 10-digit phone');
 
-  const code      = DEV_OTP;                       // dev: fixed; prod: generate + dispatch via MSG91
+  const code      = generateOtp();
   const expiresAt = new Date(Date.now() + OTP_TTL_MS);
   await prisma.oTP.create({ data: { phone, code, expiresAt } });
 
-  console.log(`[DEV OTP] phone=${phone} role=${role} code=${code}`);
+  if (!IS_PROD) {
+    console.log(`[DEV OTP] phone=${phone} role=${role} code=${code}`);
+  } else {
+    // TODO(P1): dispatch code via MSG91 to phone before logging.
+    // Log only the last 4 digits of phone — never log the OTP code itself in production.
+    console.log(`[OTP] generated for phone=...${phone.slice(-4)} (SMS dispatch pending)`);
+  }
   res.json({ ok: true, expiresIn: Math.floor(OTP_TTL_MS / 1000), resendIn: 60 });
 }));
 
