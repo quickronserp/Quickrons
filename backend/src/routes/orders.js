@@ -13,7 +13,7 @@
 const express = require('express');
 const prisma  = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
-const { verifyToken } = require('../middleware/auth');
+const { verifyToken, requireRole } = require('../middleware/auth');
 const { generateOrderNumber } = require('../utils/orderNumber');
 const {
   emitOrderPlaced,
@@ -441,9 +441,8 @@ router.post('/:id/verify-delivery-code', verifyToken, asyncH(async (req, res) =>
 }));
 
 // ─── GET / — admin: list orders by phone / status ────────────────────────────
-// No JWT for now — used by internal admin dashboard.
 
-router.get('/', asyncH(async (req, res) => {
+router.get('/', verifyToken, requireRole('ADMIN'), asyncH(async (req, res) => {
   const { phone, status, limit } = req.query;
   const take  = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
   const where = {};
@@ -468,7 +467,7 @@ const VALID_STATUSES = [
   'PICKED_UP', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'FAILED',
 ];
 
-router.post('/:id/status', asyncH(async (req, res) => {
+router.post('/:id/status', verifyToken, requireRole('ADMIN'), asyncH(async (req, res) => {
   const { status, note } = req.body || {};
   if (!VALID_STATUSES.includes(status)) {
     throw BadRequest(`Invalid status. Use one of: ${VALID_STATUSES.join(', ')}`);
@@ -496,32 +495,6 @@ router.post('/:id/status', asyncH(async (req, res) => {
   ]);
 
   res.json({ order });
-}));
-
-// ─── Admin: mock rider assign ─────────────────────────────────────────────────
-
-router.post('/:id/assign-rider', asyncH(async (req, res) => {
-  const existing = await prisma.order.findFirst({
-    where: { OR: [{ id: req.params.id }, { orderNumber: req.params.id }] },
-  });
-  if (!existing) throw NotFound('Order not found');
-  const [order] = await prisma.$transaction([
-    prisma.order.update({
-      where:   { id: existing.id },
-      data:    { status: 'PICKED_UP' },
-      include: ORDER_INCLUDE,
-    }),
-    prisma.orderEvent.create({
-      data: {
-        orderId:    existing.id,
-        fromStatus: existing.status,
-        toStatus:   'PICKED_UP',
-        actorRole:  'RIDER',
-        note:       'Rider assigned (mock)',
-      },
-    }),
-  ]);
-  res.json({ order, assignedRider: 'Rajan (mock)' });
 }));
 
 module.exports = router;
