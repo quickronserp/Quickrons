@@ -319,10 +319,11 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/delivered — PICKED_UP → DELIVERED ──────────────────────
 //
-// Records delivery to the customer.
-// Sets deliveredAt to now.
-// For COD orders: paymentStatus → CAPTURED (cash collected at door).
-// For non-COD: paymentStatus unchanged (handled by payment gateway callback).
+// Body: { code: '1234' }  ← 4-digit delivery OTP the customer reads from their app
+//
+// Rider enters the OTP the customer sees on their TrackingScreen.
+// Backend validates it matches the tamperSealCode generated at READY_FOR_PICKUP.
+// On success: marks DELIVERED + wallet settlement.
 //
 // Wallet settlement (atomic, idempotent):
 //   • Partner receives: totalPaise - commission (commission = totalPaise × commissionBps / 10000)
@@ -333,20 +334,30 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
 const RIDER_FLAT_PAISE = 3000n; // flat delivery fee until earnings model is finalised
 
 router.post('/orders/:id/delivered', asyncH(async (req, res) => {
+  const { code } = req.body || {};
+  if (typeof code !== 'string' || !/^\d{4}$/.test(code.trim())) {
+    throw BadRequest('code must be the 4-digit delivery OTP shown to the customer');
+  }
+
   // Load the order plus partner commission rate — needed for settlement math.
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
     select: {
-      id:            true,
-      status:        true,
-      paymentMethod: true,
-      totalPaise:    true,
-      partnerId:     true,
+      id:             true,
+      status:         true,
+      paymentMethod:  true,
+      totalPaise:     true,
+      partnerId:      true,
+      tamperSealCode: true,
       partner: { select: { commissionBps: true } },
     },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['PICKED_UP'], 'DELIVERED');
+
+  if (!order.tamperSealCode || order.tamperSealCode !== code.trim()) {
+    throw BadRequest('Delivery OTP does not match — ask the customer to re-read the code');
+  }
 
   const now = new Date();
 

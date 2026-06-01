@@ -204,8 +204,8 @@ export const riderOpsApi = {
     request(`/api/v1/rider/orders/${id}/verify-seal`, { method: 'POST', body: { code }, token }),
   pickedUp:   (id, token) =>
     request(`/api/v1/rider/orders/${id}/picked-up`,   { method: 'POST', token }),
-  delivered:  (id, token) =>
-    request(`/api/v1/rider/orders/${id}/delivered`,   { method: 'POST', token }),
+  delivered:  (id, code, token) =>
+    request(`/api/v1/rider/orders/${id}/delivered`,   { method: 'POST', body: { code }, token }),
   wallet:     (token) =>
     request('/api/v1/rider/wallet', { token }),
 };

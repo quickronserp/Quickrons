@@ -44,6 +44,7 @@ export default function RiderOpsScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [actionLoading, setActionLoading] = useState({});
+  const [otpInput, setOtpInput]           = useState({}); // { [orderId]: '1234' }
   const [error, setError]             = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const pollRef = useRef(null);
@@ -174,7 +175,7 @@ export default function RiderOpsScreen({ navigation }) {
   function renderActiveOrder(order) {
     const busy = actionLoading[order.id];
     const s    = order.status;
-    const otp  = order.tamperSealCode;  // 4-digit delivery OTP set at READY_FOR_PICKUP
+    const code = otpInput[order.id] || '';
 
     return (
       <View key={order.id} style={[styles.card, styles.activeCard]}>
@@ -212,30 +213,33 @@ export default function RiderOpsScreen({ navigation }) {
             </Pressable>
           )}
 
-          {/* Deliver: PICKED_UP → show delivery OTP → DELIVERED */}
+          {/* Deliver: PICKED_UP → rider enters customer's OTP → DELIVERED */}
           {s === 'PICKED_UP' && (
             <View style={{ flex: 1 }}>
-              {otp ? (
-                <View style={styles.otpBox}>
-                  <Ionicons name="key" size={16} color={colors.brand} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.otpLabel}>Delivery code — show to customer</Text>
-                    <Text style={styles.otpCode}>{otp}</Text>
-                  </View>
-                </View>
-              ) : null}
-              <Pressable
-                onPress={() => doAction(order.id,
-                  () => riderOpsApi.delivered(order.id, accessToken))}
-                disabled={busy}
-                style={[styles.primaryBtn, { backgroundColor: colors.success }, busy && styles.disabledBtn]}
-              >
-                {busy
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Ionicons name="home" size={18} color="#fff" />
-                }
-                <Text style={styles.primaryBtnTxt}>Mark Delivered</Text>
-              </Pressable>
+              <Text style={styles.otpInputLabel}>Enter Customer Delivery OTP</Text>
+              <View style={styles.otpRow}>
+                <TextInput
+                  style={styles.otpInput}
+                  placeholder="4-digit code"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  value={code}
+                  onChangeText={t => setOtpInput(prev => ({ ...prev, [order.id]: t.replace(/\D/g, '') }))}
+                />
+                <Pressable
+                  onPress={() => doAction(order.id,
+                    () => riderOpsApi.delivered(order.id, code, accessToken))}
+                  disabled={code.length !== 4 || busy}
+                  style={[styles.deliverBtn,
+                    (code.length !== 4 || busy) && styles.disabledBtn]}
+                >
+                  {busy
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                  }
+                  <Text style={styles.primaryBtnTxt}>Deliver</Text>
+                </Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -434,13 +438,18 @@ const styles = StyleSheet.create({
   },
   primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
   disabledBtn: { opacity: 0.5 },
-  otpBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: colors.brandTint, padding: space.sm, borderRadius: radii.sm,
-    marginBottom: 10, borderWidth: 1, borderColor: colors.brand + '30',
+  otpInputLabel: { fontSize: 12, fontWeight: '700', color: colors.inkSoft, marginBottom: 6 },
+  otpRow: { flexDirection: 'row', gap: 8 },
+  otpInput: {
+    flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.sm,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 22, fontWeight: '800',
+    letterSpacing: 8, textAlign: 'center', backgroundColor: colors.bgAlt, color: colors.ink,
   },
-  otpLabel: { fontSize: 11, fontWeight: '700', color: colors.brand, textTransform: 'uppercase' },
-  otpCode:  { fontSize: 28, fontWeight: '900', color: colors.brand, letterSpacing: 6 },
+  deliverBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: colors.success, paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: radii.sm, justifyContent: 'center',
+  },
   emptyBox: { alignItems: 'center', paddingVertical: space.xl, gap: 8 },
   emptyTxt: { fontSize: 15, fontWeight: '700', color: colors.ink },
   emptyHint: { fontSize: 13, color: colors.inkMuted },
