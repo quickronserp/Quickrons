@@ -36,6 +36,7 @@ const ADVANCE_EVENTS = [
   'ORDER_READY',
   'ORDER_SEALED',
   'RIDER_ASSIGNED',
+  'RIDER_VERIFIED_SEAL',  // was missing — status advances to OUT_FOR_DELIVERY on this event
   'ORDER_PICKED_UP',
   'ORDER_DELIVERED',
   'ORDER_CANCELLED',
