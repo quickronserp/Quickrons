@@ -252,8 +252,8 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {/* Delivery OTP — customer reads this 4-digit code to the rider at the door */}
-        {status === 'PICKED_UP' && order?.tamperSealCode && (
+        {/* Delivery OTP — visible to customer only after rider picks up */}
+        {status === 'PICKED_UP' && order?.deliveryOtp && (
           <View style={styles.verifyCard}>
             <View style={styles.verifyHeader}>
               <Ionicons name="key" size={20} color={colors.brand} />
@@ -263,7 +263,7 @@ export default function TrackingScreen({ route, navigation }) {
               When your rider arrives, read this code to them. They will enter it
               in their app to confirm delivery.
             </Text>
-            <Text style={styles.otpDisplay}>{order.tamperSealCode}</Text>
+            <Text style={styles.otpDisplay}>{order.deliveryOtp}</Text>
           </View>
         )}
 
