@@ -381,8 +381,8 @@ router.post('/:id/cancel', verifyToken, asyncH(async (req, res) => {
 
 router.post('/:id/verify-delivery-code', verifyToken, asyncH(async (req, res) => {
   const { code } = req.body || {};
-  if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
-    throw BadRequest('code must be a 6-digit numeric string');
+  if (typeof code !== 'string' || !/^\d{4}$/.test(code.trim())) {
+    throw BadRequest('code must be a 4-digit numeric string');
   }
 
   const order = await prisma.order.findFirst({

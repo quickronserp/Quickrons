@@ -26,11 +26,10 @@ const {
 
 // ─── Tamper seal helpers ──────────────────────────────────────────────────────
 
-// Generates a random 6-digit numeric code, zero-padded.
-// Cryptographic quality not required — the code is short-lived and only
-// shared in-person between partner and rider. Math.random is fine for MVP.
-function generateSealCode() {
-  return String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0');
+// Generates a random 4-digit numeric delivery OTP, zero-padded.
+// Stored in tamperSealCode; rider shows it to the customer at delivery.
+function generateDeliveryOtp() {
+  return String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
 }
 
 const router = express.Router();
@@ -384,23 +383,23 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
 
   const { note } = req.body || {};
 
-  // Generate code. Retry once on the vanishingly rare collision (P2002 on
-  // tamperSealCode @unique). In practice a single call is always sufficient.
-  let sealCode = generateSealCode();
+  // Generate delivery OTP. Retry once on the vanishingly rare collision
+  // (P2002 on tamperSealCode @unique). In practice one call is always enough.
+  let deliveryOtp = generateDeliveryOtp();
   let committed = false;
   for (let attempt = 0; attempt < 2 && !committed; attempt++) {
     try {
       await commitTransition(
         order,
         'READY_FOR_PICKUP',
-        { tamperSealCode: sealCode },
+        { tamperSealCode: deliveryOtp },
         note ? String(note).trim() : 'Order is packed and ready for pickup',
         req.user.id,
       );
       committed = true;
     } catch (err) {
       if (err.code === 'P2002' && attempt === 0) {
-        sealCode = generateSealCode(); // retry with a new code
+        deliveryOtp = generateDeliveryOtp(); // retry with a new code
       } else {
         throw err;
       }
@@ -409,7 +408,7 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
 
   const updated = await fetchFullOrder(order.id);
   emitOrderReady(updated);
-  res.json({ order: updated, tamperSealCode: sealCode });
+  res.json({ order: updated, deliveryOtp });
 }));
 
 // ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────
