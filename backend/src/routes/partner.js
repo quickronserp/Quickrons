@@ -21,7 +21,6 @@ const {
   emitOrderConfirmed,
   emitOrderPreparing,
   emitOrderReady,
-  emitOrderSealed,
   emitOrderCancelled,
 } = require('../socket');
 
@@ -376,9 +375,8 @@ router.post('/orders/:id/preparing', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/ready — PREPARING → READY_FOR_PICKUP ───────────────────
 //
-// Generates a unique 6-digit tamperSealCode saved on the order.
-// The code is displayed to the partner so they can verbally confirm it
-// with the rider at pickup (or show it on the kitchen display).
+// Generates a unique 4-digit delivery OTP stored in tamperSealCode.
+// The rider shows this code to the customer at delivery for verification.
 
 router.post('/orders/:id/ready', asyncH(async (req, res) => {
   const order = await getOwnOrder(req.partner.id, req.params.id);
@@ -412,58 +410,6 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
   const updated = await fetchFullOrder(order.id);
   emitOrderReady(updated);
   res.json({ order: updated, tamperSealCode: sealCode });
-}));
-
-// ─── POST /orders/:id/seal — partner confirms bag is physically sealed ────────
-//
-// Separate from /ready so the kitchen can mark "packed" and then mark "sealed"
-// as a distinct physical action. Both are optional flows — the code is generated
-// at /ready regardless.
-//
-// Allowed from: READY_FOR_PICKUP (order must have a sealCode already)
-// Effect: tamperSealStatus → SEALED, tamperSealSealedAt = now
-
-router.post('/orders/:id/seal', asyncH(async (req, res) => {
-  const order = await prisma.order.findFirst({
-    where:  { id: req.params.id, partnerId: req.partner.id },
-    select: { id: true, status: true, tamperSealCode: true, tamperSealStatus: true },
-  });
-  if (!order) throw NotFound('Order not found');
-
-  if (order.status !== 'READY_FOR_PICKUP') {
-    throw BadRequest(
-      `Cannot seal: order is "${order.status}". Only READY_FOR_PICKUP orders can be sealed.`,
-    );
-  }
-  if (!order.tamperSealCode) {
-    throw BadRequest('Order has no tamper seal code — mark the order ready first');
-  }
-  if (order.tamperSealStatus === 'SEALED') {
-    throw BadRequest('Order is already sealed');
-  }
-
-  const now = new Date();
-  await prisma.$transaction([
-    prisma.order.update({
-      where:  { id: order.id },
-      data:   { tamperSealStatus: 'SEALED', tamperSealSealedAt: now },
-      select: { id: true },
-    }),
-    prisma.orderEvent.create({
-      data: {
-        orderId:     order.id,
-        fromStatus:  order.status,
-        toStatus:    order.status,   // status does not change — same FSM node
-        actorUserId: req.user.id,
-        actorRole:   'PARTNER',
-        note:        'Package sealed by kitchen',
-      },
-    }),
-  ], { timeout: 15000 });
-
-  const updated = await fetchFullOrder(order.id);
-  emitOrderSealed(updated);
-  res.json({ order: updated });
 }));
 
 // ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────

@@ -5,16 +5,11 @@
 // POST /api/v1/rider/me/online                  → toggle isOnline { isOnline: boolean }
 // GET  /api/v1/rider/orders/available           → zone-scoped queue of READY_FOR_PICKUP orders
 // POST /api/v1/rider/orders/:id/accept          → assigns riderId only (status stays READY_FOR_PICKUP)
-// POST /api/v1/rider/orders/:id/verify-seal     → READY_FOR_PICKUP → OUT_FOR_DELIVERY (seal gate)
-// POST /api/v1/rider/orders/:id/picked-up       → OUT_FOR_DELIVERY → PICKED_UP  (requires VERIFIED_BY_RIDER)
-// POST /api/v1/rider/orders/:id/delivered       → PICKED_UP → DELIVERED         (requires VERIFIED_BY_CUSTOMER)
+// POST /api/v1/rider/orders/:id/picked-up       → READY_FOR_PICKUP → PICKED_UP
+// POST /api/v1/rider/orders/:id/delivered       → PICKED_UP → DELIVERED
 // GET  /api/v1/rider/me/orders                  → paginated history of own assigned orders
 //
-// FSM:  READY_FOR_PICKUP ──accept──▶ READY_FOR_PICKUP ──verify-seal──▶ OUT_FOR_DELIVERY ──picked-up──▶ PICKED_UP ──delivered──▶ DELIVERED
-// Seal: NONE → SEALED (partner /seal) → VERIFIED_BY_RIDER (/verify-seal) → VERIFIED_BY_CUSTOMER (/verify-delivery-code)
-//
-// /picked-up  requires tamperSealStatus === VERIFIED_BY_RIDER
-// /delivered  requires tamperSealStatus === VERIFIED_BY_CUSTOMER
+// FSM:  READY_FOR_PICKUP ──accept──▶ READY_FOR_PICKUP ──picked-up──▶ PICKED_UP ──delivered──▶ DELIVERED
 //
 // Race-safe accept: uses a single update().where({ id, status, riderId: null })
 // so two riders cannot accept the same order — the loser gets P2025 → 409.
@@ -28,7 +23,6 @@ const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const {
   emitRiderAssigned,
-  emitRiderVerifiedSeal,
   emitOrderPickedUp,
   emitOrderDelivered,
 } = require('../socket');
@@ -286,94 +280,18 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
   res.json({ order });
 }));
 
-// ─── POST /orders/:id/verify-seal — READY_FOR_PICKUP → OUT_FOR_DELIVERY ───────
+// ─── POST /orders/:id/picked-up — READY_FOR_PICKUP → PICKED_UP ──────────────
 //
-// Rider enters the 6-digit code shown on the sealed bag / kitchen display.
-// On success this is the gate that advances the FSM: READY_FOR_PICKUP → OUT_FOR_DELIVERY.
-//
-// Allowed: order must be READY_FOR_PICKUP and riderId must be this rider.
-// Effects (atomic):
-//   • tamperSealStatus = VERIFIED_BY_RIDER
-//   • tamperSealRiderAt = now
-//   • status = OUT_FOR_DELIVERY   ← FSM advances here, not at /accept
-
-router.post('/orders/:id/verify-seal', asyncH(async (req, res) => {
-  const { code } = req.body || {};
-  if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
-    throw BadRequest('code must be a 6-digit numeric string');
-  }
-
-  const order = await prisma.order.findFirst({
-    where:  { id: req.params.id, riderId: req.rider.id },
-    select: { id: true, status: true, tamperSealCode: true, tamperSealStatus: true },
-  });
-  if (!order) throw NotFound('Order not found');
-
-  if (order.status !== 'READY_FOR_PICKUP') {
-    throw BadRequest(
-      `Cannot verify seal: order is "${order.status}". Must be READY_FOR_PICKUP.`,
-    );
-  }
-  if (!order.tamperSealCode) {
-    throw BadRequest('This order has no tamper seal code — contact the kitchen');
-  }
-  if (order.tamperSealCode !== code.trim()) {
-    throw BadRequest('Seal code does not match — check with the kitchen');
-  }
-  if (order.tamperSealStatus === 'VERIFIED_BY_RIDER') {
-    throw BadRequest('Seal already verified by rider');
-  }
-
-  const now = new Date();
-  await prisma.$transaction([
-    // Advance seal status AND FSM status atomically.
-    prisma.order.update({
-      where:  { id: order.id },
-      data:   {
-        tamperSealStatus: 'VERIFIED_BY_RIDER',
-        tamperSealRiderAt: now,
-        status:            'OUT_FOR_DELIVERY',  // FSM gate
-      },
-      select: { id: true },
-    }),
-    prisma.orderEvent.create({
-      data: {
-        orderId:     order.id,
-        fromStatus:  'READY_FOR_PICKUP',
-        toStatus:    'OUT_FOR_DELIVERY',
-        actorUserId: req.user.id,
-        actorRole:   'RIDER',
-        note:        `Tamper seal verified — rider ${req.rider.fullName} is out for delivery`,
-      },
-    }),
-  ], { timeout: 15000 });
-
-  const updated = await fetchFullOrder(order.id);
-  emitRiderVerifiedSeal(updated);
-  res.json({ order: updated });
-}));
-
-// ─── POST /orders/:id/picked-up — OUT_FOR_DELIVERY → PICKED_UP ───────────────
-//
-// Records that the rider has physically collected the order from the kitchen.
-// Requires tamperSealStatus === VERIFIED_BY_RIDER (set during /verify-seal).
+// Rider taps "Pick Up" after collecting the order from the kitchen.
 // Sets pickedUpAt to now.
 
 router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
-    select: { id: true, status: true, tamperSealStatus: true },
+    select: { id: true, status: true },
   });
   if (!order) throw NotFound('Order not found');
-  assertTransition(order.status, ['OUT_FOR_DELIVERY'], 'PICKED_UP');
-
-  if (order.tamperSealStatus !== 'VERIFIED_BY_RIDER') {
-    throw BadRequest(
-      `Cannot mark picked up: tamper seal has not been verified ` +
-      `(current seal status: "${order.tamperSealStatus}"). ` +
-      'Verify the seal code first.',
-    );
-  }
+  assertTransition(order.status, ['READY_FOR_PICKUP'], 'PICKED_UP');
 
   const now = new Date();
   await prisma.$transaction([
@@ -385,7 +303,7 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
     prisma.orderEvent.create({
       data: {
         orderId:     order.id,
-        fromStatus:  'OUT_FOR_DELIVERY',
+        fromStatus:  'READY_FOR_PICKUP',
         toStatus:    'PICKED_UP',
         actorUserId: req.user.id,
         actorRole:   'RIDER',
@@ -419,27 +337,16 @@ router.post('/orders/:id/delivered', asyncH(async (req, res) => {
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
     select: {
-      id:               true,
-      status:           true,
-      paymentMethod:    true,
-      totalPaise:       true,
-      partnerId:        true,
-      tamperSealStatus: true,
+      id:            true,
+      status:        true,
+      paymentMethod: true,
+      totalPaise:    true,
+      partnerId:     true,
       partner: { select: { commissionBps: true } },
     },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['PICKED_UP'], 'DELIVERED');
-
-  // Tamper seal guard: customer must have verified the seal before delivery
-  // can be recorded. This ensures the full seal chain is complete.
-  if (order.tamperSealStatus !== 'VERIFIED_BY_CUSTOMER') {
-    throw BadRequest(
-      `Cannot mark delivered: tamper seal has not been verified by the customer ` +
-      `(current seal status: "${order.tamperSealStatus}"). ` +
-      `Ask the customer to verify the delivery code first.`,
-    );
-  }
 
   const now = new Date();
 
