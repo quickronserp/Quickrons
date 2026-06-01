@@ -412,12 +412,13 @@ model Order {
   paymentStatus       PaymentStatus    @default(PENDING)
   paymentRefId        String?                                   // Razorpay order_id
   paymentCapturedAt   DateTime?
-  // tamper seal ───────────────────────────────────────────────────────────────
-  tamperSealCode      String?          @unique                  // nanoid(12), generated at placement
+  // codes ─────────────────────────────────────────────────────────────────────
+  tamperSealCode      String?          @unique                  // 4-digit pickup code: partner → rider at pickup
+  deliveryOtp         String?                                   // 4-digit delivery OTP: customer → rider at delivery
   tamperSealStatus    TamperSealStatus @default(NONE)
-  tamperSealSealedAt  DateTime?                                 // partner sealed bag
-  tamperSealRiderAt   DateTime?                                 // rider verified at pickup
-  tamperSealCustAt    DateTime?                                 // customer verified at delivery
+  tamperSealSealedAt  DateTime?
+  tamperSealRiderAt   DateTime?
+  tamperSealCustAt    DateTime?
   // scheduling ────────────────────────────────────────────────────────────────
   scheduledFor        DateTime?
   estimatedReadyAt    DateTime?
