@@ -22,11 +22,11 @@ const STATUS_TO_STAGE = {
 };
 
 const STAGES = [
-  { id: 'placed',    label: 'Order placed',         icon: 'checkmark-circle' },
-  { id: 'cooking',   label: 'Kitchen accepted',     icon: 'restaurant' },
-  { id: 'sealed',    label: 'Sealed & ready',       icon: 'lock-closed' },
-  { id: 'enroute',   label: 'Auto en route 🛺',     icon: 'car' },
-  { id: 'delivered', label: 'Delivered',            icon: 'home' },
+  { id: 'placed',    label: 'Order placed',      icon: 'checkmark-circle' },
+  { id: 'cooking',   label: 'Kitchen accepted',  icon: 'restaurant' },
+  { id: 'ready',     label: 'Ready for pickup',  icon: 'cube' },
+  { id: 'enroute',   label: 'Auto en route 🛺',  icon: 'car' },
+  { id: 'delivered', label: 'Delivered',         icon: 'home' },
 ];
 
 // Socket events that signal a status advance
@@ -170,7 +170,7 @@ export default function TrackingScreen({ route, navigation }) {
   const etaMins = Math.max(2, 30 - stage * 6);
 
   const verifyDeliveryCode = async () => {
-    if (deliveryCode.length !== 6) return;
+    if (deliveryCode.length !== 4) return;
     setVerifyingCode(true);
     try {
       await ordersApi.verifyDeliveryCode(orderId, deliveryCode, accessToken);
@@ -270,36 +270,30 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {/* Delivery code verification — shown when rider is at door */}
+        {/* Delivery code verification — shown when rider is at door (PICKED_UP) */}
         {(status === 'PICKED_UP') && !codeVerified && (
           <View style={styles.verifyCard}>
             <View style={styles.verifyHeader}>
-              <Ionicons name="shield-half" size={20} color={colors.brand} />
-              <Text style={styles.verifyTitle}>Verify Delivery Code</Text>
+              <Ionicons name="key" size={20} color={colors.brand} />
+              <Text style={styles.verifyTitle}>Enter Delivery Code</Text>
             </View>
             <Text style={styles.verifyHint}>
-              The rider is on the way to you. When the rider arrives, check the bag's tamper seal —
-              if it's intact and the food is in your hand, enter the 6-digit code below to confirm delivery.
+              Your rider is on the way. When they arrive, ask for the 4-digit code
+              shown in their app and enter it here to confirm delivery.
             </Text>
-            <View style={styles.warningBox}>
-              <Ionicons name="warning" size={14} color={colors.brand} />
-              <Text style={styles.warningTxt}>
-                Share this code only after receiving food. Never give it before.
-              </Text>
-            </View>
             <View style={styles.verifyRow}>
               <TextInput
                 style={styles.verifyInput}
-                placeholder="6-digit code"
+                placeholder="4-digit code"
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={4}
                 value={deliveryCode}
                 onChangeText={setDeliveryCode}
               />
               <Pressable
                 onPress={verifyDeliveryCode}
-                disabled={deliveryCode.length !== 6 || verifyingCode}
-                style={[styles.verifyBtn, (deliveryCode.length !== 6 || verifyingCode) && { opacity: 0.4 }]}
+                disabled={deliveryCode.length !== 4 || verifyingCode}
+                style={[styles.verifyBtn, (deliveryCode.length !== 4 || verifyingCode) && { opacity: 0.4 }]}
               >
                 {verifyingCode
                   ? <ActivityIndicator size="small" color="#fff" />
@@ -319,17 +313,6 @@ export default function TrackingScreen({ route, navigation }) {
             </View>
           </View>
         )}
-
-        {/* Tamper seal badge */}
-        <View style={styles.trustCard}>
-          <Ionicons name="shield-checkmark" size={20} color={colors.success} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.trustTitle}>Tamper-evident sealed</Text>
-            <Text style={styles.trustDesc}>
-              Your order is sealed at the kitchen. Verify the bag seal at delivery.
-            </Text>
-          </View>
-        </View>
 
         {/* Done button */}
         {status === 'DELIVERED' && (
@@ -427,10 +410,4 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm, justifyContent: 'center',
   },
   verifyBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  warningBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.brand + '15', borderWidth: 1, borderColor: colors.brand + '40',
-    borderRadius: radii.sm, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10,
-  },
-  warningTxt: { flex: 1, fontSize: 12, color: colors.brand, fontWeight: '700', lineHeight: 16 },
 });
