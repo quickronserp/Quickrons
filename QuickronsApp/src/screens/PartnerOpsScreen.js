@@ -206,7 +206,7 @@ export default function PartnerOpsScreen({ navigation }) {
             <Ionicons name="key" size={14} color={colors.brand} />
             <Text style={styles.otpLabel}>Delivery code</Text>
             <Text style={styles.otpCode}>{otp}</Text>
-            <Text style={styles.otpHint}>Rider will show this to the customer</Text>
+            <Text style={styles.otpHint}>Customer will share this OTP with the rider</Text>
           </View>
         ) : null}
 
