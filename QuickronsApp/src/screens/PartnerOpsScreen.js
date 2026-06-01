@@ -57,7 +57,7 @@ export default function PartnerOpsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState({}); // { [orderId]: true }
-  const [deliveryOtps, setDeliveryOtps] = useState({});   // { [orderId]: '1234' }
+  const [pickupCodes, setPickupCodes] = useState({});   // { [orderId]: '5831' } — from /ready response
   const [rejectInput, setRejectInput] = useState({});     // { [orderId]: text }
   const [error, setError] = useState(null);
   // Today summary — derived from the most-recent DELIVERED orders, filtered to
@@ -149,9 +149,9 @@ export default function PartnerOpsScreen({ navigation }) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       const res = await actionFn();
-      // /ready returns deliveryOtp — store it for display on the order card
-      if (res.deliveryOtp) {
-        setDeliveryOtps(prev => ({ ...prev, [orderId]: res.deliveryOtp }));
+      // /ready returns pickupCode — store it for display on the order card
+      if (res.pickupCode) {
+        setPickupCodes(prev => ({ ...prev, [orderId]: res.pickupCode }));
       }
       await fetchOrders(true);
       if (onSuccess) onSuccess(res);
@@ -164,7 +164,7 @@ export default function PartnerOpsScreen({ navigation }) {
 
   function renderOrderCard(order) {
     const busy = actionLoading[order.id];
-    const otp  = deliveryOtps[order.id] || order.tamperSealCode;
+    const pickupCode = pickupCodes[order.id] || order.tamperSealCode;
     const s    = order.status;
 
     return (
@@ -200,13 +200,13 @@ export default function PartnerOpsScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Delivery OTP — shown once partner marks order ready */}
-        {otp ? (
+        {/* Pickup Code — shown to partner once order is ready; give to rider at pickup */}
+        {pickupCode ? (
           <View style={styles.otpBox}>
-            <Ionicons name="key" size={14} color={colors.brand} />
-            <Text style={styles.otpLabel}>Delivery code</Text>
-            <Text style={styles.otpCode}>{otp}</Text>
-            <Text style={styles.otpHint}>Customer will share this OTP with the rider</Text>
+            <Ionicons name="keypad" size={14} color={colors.brand} />
+            <Text style={styles.otpLabel}>Pickup Code</Text>
+            <Text style={styles.otpCode}>{pickupCode}</Text>
+            <Text style={styles.otpHint}>Give this code to the rider</Text>
           </View>
         ) : null}
 
