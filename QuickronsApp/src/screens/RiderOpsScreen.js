@@ -44,7 +44,6 @@ export default function RiderOpsScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [actionLoading, setActionLoading] = useState({});
-  const [sealInput, setSealInput]     = useState({});   // { [orderId]: '123456' }
   const [error, setError]             = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const pollRef = useRef(null);
@@ -127,27 +126,13 @@ export default function RiderOpsScreen({ navigation }) {
     }
   }
 
-  async function doAction(orderId, actionFn, { isDeliver = false } = {}) {
+  async function doAction(orderId, actionFn) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       await actionFn();
       await fetchAll(true);
     } catch (e) {
-      const msg = e.message || 'Action failed';
-      // Give a more helpful message when delivery blocked by unverified customer code
-      if (isDeliver && (
-        msg.toLowerCase().includes('seal') ||
-        msg.toLowerCase().includes('customer') ||
-        msg.toLowerCase().includes('verif')
-      )) {
-        Alert.alert(
-          'Customer Must Verify First',
-          'Ask the customer to open their Quickrons app → My Orders → open this order → enter the 6-digit code from the sealed bag. Then tap Mark Delivered again.',
-          [{ text: 'Got it' }]
-        );
-      } else {
-        Alert.alert('Error', msg);
-      }
+      Alert.alert('Error', e.message || 'Action failed');
     } finally {
       setActionLoading(prev => ({ ...prev, [orderId]: false }));
     }
@@ -188,8 +173,8 @@ export default function RiderOpsScreen({ navigation }) {
 
   function renderActiveOrder(order) {
     const busy = actionLoading[order.id];
-    const s = order.status;
-    const code = sealInput[order.id] || '';
+    const s    = order.status;
+    const otp  = order.tamperSealCode;  // 4-digit delivery OTP set at READY_FOR_PICKUP
 
     return (
       <View key={order.id} style={[styles.card, styles.activeCard]}>
@@ -212,38 +197,8 @@ export default function RiderOpsScreen({ navigation }) {
         </Text>
 
         <View style={styles.actions}>
-          {/* Verify Seal: READY_FOR_PICKUP → OUT_FOR_DELIVERY */}
+          {/* Pick Up: READY_FOR_PICKUP → PICKED_UP */}
           {s === 'READY_FOR_PICKUP' && (
-            <View style={styles.sealInputWrap}>
-              <Text style={styles.sealInputLabel}>Enter tamper seal code</Text>
-              <View style={styles.sealRow}>
-                <TextInput
-                  style={styles.sealInput}
-                  placeholder="6-digit code"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={code}
-                  onChangeText={t => setSealInput(prev => ({ ...prev, [order.id]: t }))}
-                />
-                <Pressable
-                  disabled={code.length !== 6 || busy}
-                  onPress={() => doAction(order.id,
-                    () => riderOpsApi.verifySeal(order.id, code, accessToken)
-                  )}
-                  style={[styles.sealVerifyBtn,
-                    (code.length !== 6 || busy) && styles.disabledBtn]}
-                >
-                  {busy
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Text style={styles.sealVerifyTxt}>Verify Seal</Text>
-                  }
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          {/* Picked Up: OUT_FOR_DELIVERY → PICKED_UP */}
-          {s === 'OUT_FOR_DELIVERY' && (
             <Pressable
               onPress={() => doAction(order.id, () => riderOpsApi.pickedUp(order.id, accessToken))}
               disabled={busy}
@@ -253,34 +208,25 @@ export default function RiderOpsScreen({ navigation }) {
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Ionicons name="bag-check" size={18} color="#fff" />
               }
-              <Text style={styles.primaryBtnTxt}>Mark Picked Up</Text>
+              <Text style={styles.primaryBtnTxt}>Pick Up Order</Text>
             </Pressable>
           )}
 
-          {/* Delivered: PICKED_UP → DELIVERED (customer must verify first) */}
+          {/* Deliver: PICKED_UP → show delivery OTP → DELIVERED */}
           {s === 'PICKED_UP' && (
             <View style={{ flex: 1 }}>
-              <View style={styles.waitingBox}>
-                <Ionicons name="time" size={16} color={colors.accent} />
-                <Text style={styles.waitingTxt}>
-                  Ask customer to verify delivery code in their app, then tap below.
-                </Text>
-              </View>
+              {otp ? (
+                <View style={styles.otpBox}>
+                  <Ionicons name="key" size={16} color={colors.brand} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.otpLabel}>Delivery code — show to customer</Text>
+                    <Text style={styles.otpCode}>{otp}</Text>
+                  </View>
+                </View>
+              ) : null}
               <Pressable
-                onPress={() => {
-                  Alert.alert(
-                    'Mark Delivered',
-                    'Has the customer verified the delivery code in their app?',
-                    [
-                      { text: 'Not yet', style: 'cancel' },
-                      { text: 'Yes, deliver',
-                        onPress: () => doAction(order.id,
-                          () => riderOpsApi.delivered(order.id, accessToken),
-                          { isDeliver: true })
-                      },
-                    ]
-                  );
-                }}
+                onPress={() => doAction(order.id,
+                  () => riderOpsApi.delivered(order.id, accessToken))}
                 disabled={busy}
                 style={[styles.primaryBtn, { backgroundColor: colors.success }, busy && styles.disabledBtn]}
               >
@@ -488,25 +434,13 @@ const styles = StyleSheet.create({
   },
   primaryBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
   disabledBtn: { opacity: 0.5 },
-  sealInputWrap: { marginBottom: 10 },
-  sealInputLabel: { fontSize: 12, fontWeight: '700', color: colors.inkSoft, marginBottom: 6 },
-  sealRow: { flexDirection: 'row', gap: 8 },
-  sealInput: {
-    flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radii.sm,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 20, fontWeight: '800',
-    letterSpacing: 6, textAlign: 'center', backgroundColor: colors.bgAlt,
+  otpBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.brandTint, padding: space.sm, borderRadius: radii.sm,
+    marginBottom: 10, borderWidth: 1, borderColor: colors.brand + '30',
   },
-  sealVerifyBtn: {
-    backgroundColor: colors.brand, paddingHorizontal: 16, paddingVertical: 10,
-    borderRadius: radii.sm, justifyContent: 'center',
-  },
-  sealVerifyTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  waitingBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: colors.accent + '15', padding: space.sm, borderRadius: radii.sm,
-    marginBottom: 10,
-  },
-  waitingTxt: { flex: 1, fontSize: 13, color: colors.ink, lineHeight: 18 },
+  otpLabel: { fontSize: 11, fontWeight: '700', color: colors.brand, textTransform: 'uppercase' },
+  otpCode:  { fontSize: 28, fontWeight: '900', color: colors.brand, letterSpacing: 6 },
   emptyBox: { alignItems: 'center', paddingVertical: space.xl, gap: 8 },
   emptyTxt: { fontSize: 15, fontWeight: '700', color: colors.ink },
   emptyHint: { fontSize: 13, color: colors.inkMuted },
