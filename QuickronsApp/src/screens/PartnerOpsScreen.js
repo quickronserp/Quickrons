@@ -57,8 +57,8 @@ export default function PartnerOpsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState({}); // { [orderId]: true }
-  const [sealCodes, setSealCodes] = useState({});          // { [orderId]: '123456' }
-  const [rejectInput, setRejectInput] = useState({});      // { [orderId]: text }
+  const [deliveryOtps, setDeliveryOtps] = useState({});   // { [orderId]: '1234' }
+  const [rejectInput, setRejectInput] = useState({});     // { [orderId]: text }
   const [error, setError] = useState(null);
   // Today summary — derived from the most-recent DELIVERED orders, filtered to
   // today's calendar date. Refreshes on every poll alongside the active list.
@@ -149,9 +149,9 @@ export default function PartnerOpsScreen({ navigation }) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       const res = await actionFn();
-      // If response has tamperSealCode (from /ready), store it
-      if (res.tamperSealCode) {
-        setSealCodes(prev => ({ ...prev, [orderId]: res.tamperSealCode }));
+      // /ready returns deliveryOtp — store it for display on the order card
+      if (res.deliveryOtp) {
+        setDeliveryOtps(prev => ({ ...prev, [orderId]: res.deliveryOtp }));
       }
       await fetchOrders(true);
       if (onSuccess) onSuccess(res);
@@ -164,8 +164,8 @@ export default function PartnerOpsScreen({ navigation }) {
 
   function renderOrderCard(order) {
     const busy = actionLoading[order.id];
-    const sealCode = sealCodes[order.id] || order.tamperSealCode;
-    const s = order.status;
+    const otp  = deliveryOtps[order.id] || order.tamperSealCode;
+    const s    = order.status;
 
     return (
       <View key={order.id} style={styles.card}>
@@ -200,17 +200,17 @@ export default function PartnerOpsScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Seal code display */}
-        {sealCode ? (
-          <View style={styles.sealBox}>
-            <Ionicons name="lock-closed" size={16} color={colors.success} />
-            <Text style={styles.sealLabel}>Tamper Seal Code</Text>
-            <Text style={styles.sealCode}>{sealCode}</Text>
-            <Text style={styles.sealHint}>Show this to the rider</Text>
+        {/* Delivery OTP — shown once partner marks order ready */}
+        {otp ? (
+          <View style={styles.otpBox}>
+            <Ionicons name="key" size={14} color={colors.brand} />
+            <Text style={styles.otpLabel}>Delivery code</Text>
+            <Text style={styles.otpCode}>{otp}</Text>
+            <Text style={styles.otpHint}>Rider will show this to the customer</Text>
           </View>
         ) : null}
 
-        {/* Action buttons */}
+        {/* Action buttons — ACCEPTED → PREPARING → READY_FOR_PICKUP */}
         <View style={styles.actions}>
           {s === 'PLACED' && (
             <>
@@ -256,19 +256,10 @@ export default function PartnerOpsScreen({ navigation }) {
               onPress={() => doAction(order.id, () => partnerApi.ready(order.id, accessToken))}
             />
           )}
-          {s === 'READY_FOR_PICKUP' && !order.tamperSealStatus?.includes('SEALED') && (
-            <ActionBtn
-              label="Seal Package"
-              icon="lock-closed"
-              color={colors.brand}
-              busy={busy}
-              onPress={() => doAction(order.id, () => partnerApi.seal(order.id, accessToken))}
-            />
-          )}
-          {s === 'READY_FOR_PICKUP' && order.tamperSealStatus === 'SEALED' && (
-            <View style={styles.sealedBadge}>
-              <Ionicons name="shield-checkmark" size={16} color={colors.success} />
-              <Text style={styles.sealedTxt}>Package sealed — awaiting rider</Text>
+          {s === 'READY_FOR_PICKUP' && (
+            <View style={styles.awaitingBadge}>
+              <Ionicons name="time-outline" size={16} color={colors.inkSoft} />
+              <Text style={styles.awaitingTxt}>Awaiting rider pickup</Text>
             </View>
           )}
         </View>
@@ -494,13 +485,21 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   amount: { fontSize: 16, fontWeight: '800', color: colors.ink },
   meta: { fontSize: 12, color: colors.inkSoft, flex: 1, textAlign: 'right', marginLeft: 8 },
-  sealBox: {
-    backgroundColor: colors.success + '15', borderRadius: radii.sm, padding: space.md,
-    alignItems: 'center', marginBottom: 10, gap: 4,
+  otpBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.brandTint, borderRadius: radii.sm, padding: space.sm,
+    marginBottom: 10, borderWidth: 1, borderColor: colors.brand + '30',
   },
-  sealLabel: { fontSize: 11, fontWeight: '700', color: colors.success, textTransform: 'uppercase' },
-  sealCode: { fontSize: 36, fontWeight: '900', color: colors.success, letterSpacing: 8 },
-  sealHint: { fontSize: 12, color: colors.success },
+  otpLabel: { fontSize: 11, fontWeight: '700', color: colors.brand, textTransform: 'uppercase' },
+  otpCode:  { fontSize: 22, fontWeight: '900', color: colors.brand, letterSpacing: 4 },
+  otpHint:  { fontSize: 11, color: colors.inkSoft, marginLeft: 'auto' },
+  awaitingBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: colors.bgAlt, borderRadius: radii.sm,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  awaitingTxt: { fontSize: 13, fontWeight: '600', color: colors.inkSoft },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -508,10 +507,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center', minWidth: 100,
   },
   actionBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
-  sealedBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: colors.success + '15', borderRadius: radii.sm,
-  },
-  sealedTxt: { fontSize: 13, fontWeight: '700', color: colors.success },
 });
