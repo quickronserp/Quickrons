@@ -24,11 +24,11 @@ const {
   emitOrderCancelled,
 } = require('../socket');
 
-// ─── Tamper seal helpers ──────────────────────────────────────────────────────
+// ─── Code helpers ────────────────────────────────────────────────────────────
 
-// Generates a random 4-digit numeric delivery OTP, zero-padded.
-// Stored in tamperSealCode; rider shows it to the customer at delivery.
-function generateDeliveryOtp() {
+// Generates a random 4-digit numeric code, zero-padded.
+// Used for both pickup codes (partner → rider) and delivery OTPs (customer → rider).
+function generateCode() {
   return String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
 }
 
@@ -374,8 +374,9 @@ router.post('/orders/:id/preparing', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/ready — PREPARING → READY_FOR_PICKUP ───────────────────
 //
-// Generates a unique 4-digit delivery OTP stored in tamperSealCode.
-// The rider shows this code to the customer at delivery for verification.
+// Generates a unique 4-digit Pickup Code stored in tamperSealCode.
+// Partner shows this code to the rider at pickup — the rider enters it to
+// advance READY_FOR_PICKUP → PICKED_UP.  Customer never sees this code.
 
 router.post('/orders/:id/ready', asyncH(async (req, res) => {
   const order = await getOwnOrder(req.partner.id, req.params.id);
@@ -383,23 +384,23 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
 
   const { note } = req.body || {};
 
-  // Generate delivery OTP. Retry once on the vanishingly rare collision
+  // Generate pickup code. Retry once on the vanishingly rare collision
   // (P2002 on tamperSealCode @unique). In practice one call is always enough.
-  let deliveryOtp = generateDeliveryOtp();
+  let pickupCode = generateCode();
   let committed = false;
   for (let attempt = 0; attempt < 2 && !committed; attempt++) {
     try {
       await commitTransition(
         order,
         'READY_FOR_PICKUP',
-        { tamperSealCode: deliveryOtp },
+        { tamperSealCode: pickupCode },
         note ? String(note).trim() : 'Order is packed and ready for pickup',
         req.user.id,
       );
       committed = true;
     } catch (err) {
       if (err.code === 'P2002' && attempt === 0) {
-        deliveryOtp = generateDeliveryOtp(); // retry with a new code
+        pickupCode = generateCode(); // retry with a new code
       } else {
         throw err;
       }
@@ -408,7 +409,7 @@ router.post('/orders/:id/ready', asyncH(async (req, res) => {
 
   const updated = await fetchFullOrder(order.id);
   emitOrderReady(updated);
-  res.json({ order: updated, deliveryOtp });
+  res.json({ order: updated, pickupCode });
 }));
 
 // ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────

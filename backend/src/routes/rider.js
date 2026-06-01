@@ -270,7 +270,7 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
         toStatus:    'READY_FOR_PICKUP',   // status unchanged — rider assigned, not yet verified
         actorUserId: req.user.id,
         actorRole:   'RIDER',
-        note:        `Accepted by rider ${req.rider.fullName} — awaiting seal verification`,
+        note:        `Accepted by rider ${req.rider.fullName} — awaiting pickup code verification`,
       },
     }),
   ], { timeout: 15000 });
@@ -282,22 +282,37 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/picked-up — READY_FOR_PICKUP → PICKED_UP ──────────────
 //
-// Rider taps "Pick Up" after collecting the order from the kitchen.
-// Sets pickedUpAt to now.
+// Body: { code: '5831' }  ← 4-digit Pickup Code shown on the partner screen
+//
+// Rider enters the Pickup Code the partner reads from their app.
+// Backend validates, then generates the Delivery OTP (shown to customer).
+// Flow: READY_FOR_PICKUP → PICKED_UP + deliveryOtp set on order.
 
 router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
+  const { code } = req.body || {};
+  if (typeof code !== 'string' || !/^\d{4}$/.test(code.trim())) {
+    throw BadRequest('code must be the 4-digit pickup code shown on the partner screen');
+  }
+
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
-    select: { id: true, status: true },
+    select: { id: true, status: true, tamperSealCode: true },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['READY_FOR_PICKUP'], 'PICKED_UP');
+
+  if (!order.tamperSealCode || order.tamperSealCode !== code.trim()) {
+    throw BadRequest('Pickup code does not match — check with the partner');
+  }
+
+  // Generate delivery OTP now — only created after pickup is verified.
+  const deliveryOtp = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
 
   const now = new Date();
   await prisma.$transaction([
     prisma.order.update({
       where:  { id: order.id },
-      data:   { status: 'PICKED_UP', pickedUpAt: now },
+      data:   { status: 'PICKED_UP', pickedUpAt: now, deliveryOtp },
       select: { id: true },
     }),
     prisma.orderEvent.create({
@@ -307,7 +322,7 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
         toStatus:    'PICKED_UP',
         actorUserId: req.user.id,
         actorRole:   'RIDER',
-        note:        'Order picked up from kitchen',
+        note:        'Pickup code verified — order collected from kitchen',
       },
     }),
   ], { timeout: 15000 });
@@ -319,10 +334,10 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/delivered — PICKED_UP → DELIVERED ──────────────────────
 //
-// Body: { code: '1234' }  ← 4-digit delivery OTP the customer reads from their app
+// Body: { code: '0073' }  ← 4-digit Delivery OTP the customer reads from their app
 //
 // Rider enters the OTP the customer sees on their TrackingScreen.
-// Backend validates it matches the tamperSealCode generated at READY_FOR_PICKUP.
+// Backend validates it matches the deliveryOtp generated at PICKED_UP.
 // On success: marks DELIVERED + wallet settlement.
 //
 // Wallet settlement (atomic, idempotent):
@@ -343,19 +358,19 @@ router.post('/orders/:id/delivered', asyncH(async (req, res) => {
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
     select: {
-      id:             true,
-      status:         true,
-      paymentMethod:  true,
-      totalPaise:     true,
-      partnerId:      true,
-      tamperSealCode: true,
+      id:            true,
+      status:        true,
+      paymentMethod: true,
+      totalPaise:    true,
+      partnerId:     true,
+      deliveryOtp:   true,
       partner: { select: { commissionBps: true } },
     },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['PICKED_UP'], 'DELIVERED');
 
-  if (!order.tamperSealCode || order.tamperSealCode !== code.trim()) {
+  if (!order.deliveryOtp || order.deliveryOtp !== code.trim()) {
     throw BadRequest('Delivery OTP does not match — ask the customer to re-read the code');
   }
 
@@ -607,7 +622,8 @@ router.get('/me/orders', asyncH(async (req, res) => {
         addrLine1:       true,
         addrCity:        true,
         addrPincode:     true,
-        tamperSealCode:  true,   // delivery OTP — shown to rider when PICKED_UP
+        tamperSealCode:  true,   // pickup code (not shown to rider in UI)
+        deliveryOtp:     true,   // delivery OTP (not shown to rider in UI — rider enters, doesn't see)
         pickedUpAt:      true,
         deliveredAt:     true,
         createdAt:       true,
