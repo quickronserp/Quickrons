@@ -19,10 +19,8 @@
 //     ORDER_PLACED         payload: { orderId, orderNumber, partnerId, zoneCode, totalPaise, createdAt }
 //     ORDER_CONFIRMED      payload: { orderId, orderNumber, estimatedReadyAt }
 //     ORDER_PREPARING      payload: { orderId, orderNumber }
-//     ORDER_READY          payload: { orderId, orderNumber, tamperSealCode }
-//     ORDER_SEALED         payload: { orderId, orderNumber, tamperSealSealedAt }
+//     ORDER_READY          payload: { orderId, orderNumber }
 //     RIDER_ASSIGNED       payload: { orderId, orderNumber, riderId, riderName }
-//     RIDER_VERIFIED_SEAL  payload: { orderId, orderNumber, riderId }
 //     ORDER_PICKED_UP      payload: { orderId, orderNumber, pickedUpAt }
 //     ORDER_DELIVERED      payload: { orderId, orderNumber, deliveredAt }
 //     ORDER_CANCELLED      payload: { orderId, orderNumber, cancelledBy, reason }
@@ -146,7 +144,6 @@ function emitOrderPreparing(order) {
 }
 
 function emitOrderReady(order) {
-  // tamperSealCode is intentionally included — partner display + rider app need it.
   broadcast(
     [
       `order:${order.id}`,
@@ -155,25 +152,8 @@ function emitOrderReady(order) {
     ],
     'ORDER_READY',
     {
-      orderId:        order.id,
-      orderNumber:    order.orderNumber,
-      tamperSealCode: order.tamperSealCode ?? null,
-    },
-  );
-}
-
-function emitOrderSealed(order) {
-  broadcast(
-    [
-      `order:${order.id}`,
-      `partner:${order.partnerId}`,
-      ...(order.riderId ? [`rider:${order.riderId}`] : []),
-    ],
-    'ORDER_SEALED',
-    {
-      orderId:           order.id,
-      orderNumber:       order.orderNumber,
-      tamperSealSealedAt: order.tamperSealSealedAt ?? null,
+      orderId:     order.id,
+      orderNumber: order.orderNumber,
     },
   );
 }
@@ -191,22 +171,6 @@ function emitRiderAssigned(order) {
       orderNumber: order.orderNumber,
       riderId:     order.riderId,
       riderName:   order.rider?.fullName ?? null,
-    },
-  );
-}
-
-function emitRiderVerifiedSeal(order) {
-  broadcast(
-    [
-      `order:${order.id}`,
-      `partner:${order.partnerId}`,
-      `rider:${order.riderId}`,
-    ],
-    'RIDER_VERIFIED_SEAL',
-    {
-      orderId:     order.id,
-      orderNumber: order.orderNumber,
-      riderId:     order.riderId,
     },
   );
 }
@@ -266,9 +230,7 @@ module.exports = {
   emitOrderConfirmed,
   emitOrderPreparing,
   emitOrderReady,
-  emitOrderSealed,
   emitRiderAssigned,
-  emitRiderVerifiedSeal,
   emitOrderPickedUp,
   emitOrderDelivered,
   emitOrderCancelled,

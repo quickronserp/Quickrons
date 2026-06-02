@@ -140,7 +140,6 @@ router.get('/orders', asyncH(async (req, res) => {
         totalPaise:    true,
         paymentMethod: true,
         paymentStatus: true,
-        tamperSealStatus: true,
         createdAt:     true,
         deliveredAt:   true,
         cancelledBy:   true,
@@ -578,7 +577,6 @@ router.get('/orders/stuck', asyncH(async (_req, res) => {
     totalPaise:       true,
     paymentMethod:    true,
     paymentStatus:    true,
-    tamperSealStatus: true,
     createdAt:        true,
     pickedUpAt:       true,
     partner:          { select: { id: true, brand: true } },
@@ -617,12 +615,10 @@ router.get('/orders/stuck', asyncH(async (_req, res) => {
       take:    25,
       select:  baseSelect,
     }),
-    // C) PICKED_UP but customer hasn't verified delivery code
+    // C) PICKED_UP too long without delivery OTP confirmation
     prisma.order.findMany({
       where: {
-        status:           'PICKED_UP',
-        tamperSealStatus: { not: 'VERIFIED_BY_CUSTOMER' },
-        // pickedUpAt may be null on legacy rows — use createdAt as safe fallback via OR
+        status: 'PICKED_UP',
         OR: [
           { pickedUpAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },
           { pickedUpAt: null, createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },

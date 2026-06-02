@@ -97,13 +97,6 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
 }
 
-enum TamperSealStatus {
-  NONE
-  SEALED
-  VERIFIED_BY_RIDER
-  VERIFIED_BY_CUSTOMER
-  BROKEN
-}
 
 enum WalletOwnerType {
   PARTNER
@@ -413,12 +406,7 @@ model Order {
   paymentRefId        String?                                   // Razorpay order_id
   paymentCapturedAt   DateTime?
   // codes ─────────────────────────────────────────────────────────────────────
-  tamperSealCode      String?          @unique                  // 4-digit pickup code: partner → rider at pickup
-  deliveryOtp         String?                                   // 4-digit delivery OTP: customer → rider at delivery
-  tamperSealStatus    TamperSealStatus @default(NONE)
-  tamperSealSealedAt  DateTime?
-  tamperSealRiderAt   DateTime?
-  tamperSealCustAt    DateTime?
+  deliveryOtp         String?                                   // 4-digit delivery OTP: generated at pickup, shown to customer, entered by rider at delivery
   // scheduling ────────────────────────────────────────────────────────────────
   scheduledFor        DateTime?
   estimatedReadyAt    DateTime?

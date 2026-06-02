@@ -105,8 +105,6 @@ export const ordersApi = {
     return request(`/api/v1/customers/me/orders${qs ? '?' + qs : ''}`, { token });
   },
 
-  verifyDeliveryCode: (id, code, token) =>
-    request(`/api/v1/orders/${id}/verify-delivery-code`, { method: 'POST', body: { code }, token }),
 };
 
 // ─── Partner Ops ──────────────────────────────────────────────────────────────
@@ -200,10 +198,8 @@ export const riderOpsApi = {
   },
   accept:     (id, token) =>
     request(`/api/v1/rider/orders/${id}/accept`,      { method: 'POST', token }),
-  verifySeal: (id, code, token) =>
-    request(`/api/v1/rider/orders/${id}/verify-seal`, { method: 'POST', body: { code }, token }),
-  pickedUp:   (id, code, token) =>
-    request(`/api/v1/rider/orders/${id}/picked-up`,   { method: 'POST', body: { code }, token }),
+  pickedUp:   (id, token) =>
+    request(`/api/v1/rider/orders/${id}/picked-up`,   { method: 'POST', token }),
   delivered:  (id, code, token) =>
     request(`/api/v1/rider/orders/${id}/delivered`,   { method: 'POST', body: { code }, token }),
   wallet:     (token) =>

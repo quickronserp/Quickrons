@@ -4,8 +4,7 @@
 //   GET  /api/v1/partner/orders  (all active)
 //   POST /api/v1/partner/orders/:id/accept
 //   POST /api/v1/partner/orders/:id/preparing
-//   POST /api/v1/partner/orders/:id/ready    → returns tamperSealCode
-//   POST /api/v1/partner/orders/:id/seal
+//   POST /api/v1/partner/orders/:id/ready
 //   POST /api/v1/partner/orders/:id/reject
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -57,7 +56,6 @@ export default function PartnerOpsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState({}); // { [orderId]: true }
-  const [pickupCodes, setPickupCodes] = useState({});   // { [orderId]: '5831' } — from /ready response
   const [rejectInput, setRejectInput] = useState({});     // { [orderId]: text }
   const [error, setError] = useState(null);
   // Today summary — derived from the most-recent DELIVERED orders, filtered to
@@ -145,16 +143,11 @@ export default function PartnerOpsScreen({ navigation }) {
 
   const onRefresh = () => { setRefreshing(true); fetchOrders(); };
 
-  async function doAction(orderId, actionFn, onSuccess) {
+  async function doAction(orderId, actionFn) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
-      const res = await actionFn();
-      // /ready returns pickupCode — store it for display on the order card
-      if (res.pickupCode) {
-        setPickupCodes(prev => ({ ...prev, [orderId]: res.pickupCode }));
-      }
+      await actionFn();
       await fetchOrders(true);
-      if (onSuccess) onSuccess(res);
     } catch (e) {
       Alert.alert('Error', e.message || 'Action failed');
     } finally {
@@ -164,7 +157,6 @@ export default function PartnerOpsScreen({ navigation }) {
 
   function renderOrderCard(order) {
     const busy = actionLoading[order.id];
-    const pickupCode = pickupCodes[order.id] || order.tamperSealCode;
     const s    = order.status;
 
     return (
@@ -199,16 +191,6 @@ export default function PartnerOpsScreen({ navigation }) {
             {[order.addrLine1, order.addrCity].filter(Boolean).join(', ')}
           </Text>
         </View>
-
-        {/* Pickup Code — shown to partner once order is ready; give to rider at pickup */}
-        {pickupCode ? (
-          <View style={styles.otpBox}>
-            <Ionicons name="keypad" size={14} color={colors.brand} />
-            <Text style={styles.otpLabel}>Pickup Code</Text>
-            <Text style={styles.otpCode}>{pickupCode}</Text>
-            <Text style={styles.otpHint}>Give this code to the rider</Text>
-          </View>
-        ) : null}
 
         {/* Action buttons — ACCEPTED → PREPARING → READY_FOR_PICKUP */}
         <View style={styles.actions}>
@@ -485,14 +467,6 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   amount: { fontSize: 16, fontWeight: '800', color: colors.ink },
   meta: { fontSize: 12, color: colors.inkSoft, flex: 1, textAlign: 'right', marginLeft: 8 },
-  otpBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.brandTint, borderRadius: radii.sm, padding: space.sm,
-    marginBottom: 10, borderWidth: 1, borderColor: colors.brand + '30',
-  },
-  otpLabel: { fontSize: 11, fontWeight: '700', color: colors.brand, textTransform: 'uppercase' },
-  otpCode:  { fontSize: 22, fontWeight: '900', color: colors.brand, letterSpacing: 4 },
-  otpHint:  { fontSize: 11, color: colors.inkSoft, marginLeft: 'auto' },
   awaitingBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,

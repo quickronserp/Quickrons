@@ -267,10 +267,10 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
       data: {
         orderId:     accepted.id,
         fromStatus:  'READY_FOR_PICKUP',
-        toStatus:    'READY_FOR_PICKUP',   // status unchanged — rider assigned, not yet verified
+        toStatus:    'READY_FOR_PICKUP',   // status unchanged — rider assigned, heading to pickup
         actorUserId: req.user.id,
         actorRole:   'RIDER',
-        note:        `Accepted by rider ${req.rider.fullName} — awaiting pickup code verification`,
+        note:        `Accepted by rider ${req.rider.fullName} — heading to kitchen`,
       },
     }),
   ], { timeout: 15000 });
@@ -282,30 +282,17 @@ router.post('/orders/:id/accept', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/picked-up — READY_FOR_PICKUP → PICKED_UP ──────────────
 //
-// Body: { code: '5831' }  ← 4-digit Pickup Code shown on the partner screen
-//
-// Rider enters the Pickup Code the partner reads from their app.
-// Backend validates, then generates the Delivery OTP (shown to customer).
-// Flow: READY_FOR_PICKUP → PICKED_UP + deliveryOtp set on order.
+// Rider taps "Picked Up" — no code required.
+// System generates the Delivery OTP here (shown to customer; rider enters it at delivery).
 
 router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
-  const { code } = req.body || {};
-  if (typeof code !== 'string' || !/^\d{4}$/.test(code.trim())) {
-    throw BadRequest('code must be the 4-digit pickup code shown on the partner screen');
-  }
-
   const order = await prisma.order.findFirst({
     where:  { id: req.params.id, riderId: req.rider.id },
-    select: { id: true, status: true, tamperSealCode: true },
+    select: { id: true, status: true },
   });
   if (!order) throw NotFound('Order not found');
   assertTransition(order.status, ['READY_FOR_PICKUP'], 'PICKED_UP');
 
-  if (!order.tamperSealCode || order.tamperSealCode !== code.trim()) {
-    throw BadRequest('Pickup code does not match — check with the partner');
-  }
-
-  // Generate delivery OTP now — only created after pickup is verified.
   const deliveryOtp = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
 
   const now = new Date();
@@ -322,7 +309,7 @@ router.post('/orders/:id/picked-up', asyncH(async (req, res) => {
         toStatus:    'PICKED_UP',
         actorUserId: req.user.id,
         actorRole:   'RIDER',
-        note:        'Pickup code verified — order collected from kitchen',
+        note:        'Order collected from kitchen',
       },
     }),
   ], { timeout: 15000 });
@@ -622,8 +609,7 @@ router.get('/me/orders', asyncH(async (req, res) => {
         addrLine1:       true,
         addrCity:        true,
         addrPincode:     true,
-        tamperSealCode:  true,   // pickup code (not shown to rider in UI)
-        deliveryOtp:     true,   // delivery OTP (not shown to rider in UI — rider enters, doesn't see)
+        deliveryOtp:     true,   // not shown to rider — rider enters it, customer reads it
         pickedUpAt:      true,
         deliveredAt:     true,
         createdAt:       true,

@@ -4,9 +4,8 @@
 //   POST /api/v1/rider/me/online         { isOnline }
 //   GET  /api/v1/rider/orders/available
 //   POST /api/v1/rider/orders/:id/accept
-//   POST /api/v1/rider/orders/:id/verify-seal   { code }
-//   POST /api/v1/rider/orders/:id/picked-up
-//   POST /api/v1/rider/orders/:id/delivered
+//   POST /api/v1/rider/orders/:id/picked-up      (no code — system generates delivery OTP)
+//   POST /api/v1/rider/orders/:id/delivered      { code }  ← delivery OTP from customer
 //   GET  /api/v1/rider/me/orders         (active)
 //   GET  /api/v1/rider/wallet
 
@@ -44,7 +43,6 @@ export default function RiderOpsScreen({ navigation }) {
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
   const [actionLoading, setActionLoading] = useState({});
-  const [pickupInput, setPickupInput]     = useState({}); // { [orderId]: '5831' } pickup code from partner
   const [otpInput, setOtpInput]           = useState({}); // { [orderId]: '0073' } delivery OTP from customer
   const [error, setError]             = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
@@ -174,10 +172,9 @@ export default function RiderOpsScreen({ navigation }) {
   }
 
   function renderActiveOrder(order) {
-    const busy      = actionLoading[order.id];
-    const s         = order.status;
-    const pCode     = pickupInput[order.id] || '';  // pickup code entered by rider
-    const dCode     = otpInput[order.id]    || '';  // delivery OTP entered by rider
+    const busy  = actionLoading[order.id];
+    const s     = order.status;
+    const dCode = otpInput[order.id] || '';  // delivery OTP entered by rider
 
     return (
       <View key={order.id} style={[styles.card, styles.activeCard]}>
@@ -200,34 +197,19 @@ export default function RiderOpsScreen({ navigation }) {
         </Text>
 
         <View style={styles.actions}>
-          {/* Pickup gate: rider enters partner's Pickup Code → PICKED_UP */}
+          {/* Pickup: rider taps Picked Up — no code needed, system generates delivery OTP */}
           {s === 'READY_FOR_PICKUP' && (
-            <View style={{ flex: 1 }}>
-              <Text style={styles.otpInputLabel}>Enter Pickup Code (from partner)</Text>
-              <View style={styles.otpRow}>
-                <TextInput
-                  style={styles.otpInput}
-                  placeholder="4-digit code"
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  value={pCode}
-                  onChangeText={t => setPickupInput(prev => ({ ...prev, [order.id]: t.replace(/\D/g, '') }))}
-                />
-                <Pressable
-                  onPress={() => doAction(order.id,
-                    () => riderOpsApi.pickedUp(order.id, pCode, accessToken))}
-                  disabled={pCode.length !== 4 || busy}
-                  style={[styles.deliverBtn, { backgroundColor: colors.brand },
-                    (pCode.length !== 4 || busy) && styles.disabledBtn]}
-                >
-                  {busy
-                    ? <ActivityIndicator size="small" color="#fff" />
-                    : <Ionicons name="bag-check" size={18} color="#fff" />
-                  }
-                  <Text style={styles.primaryBtnTxt}>Pick Up</Text>
-                </Pressable>
-              </View>
-            </View>
+            <Pressable
+              onPress={() => doAction(order.id, () => riderOpsApi.pickedUp(order.id, accessToken))}
+              disabled={busy}
+              style={[styles.deliverBtn, { backgroundColor: colors.brand }, busy && styles.disabledBtn]}
+            >
+              {busy
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Ionicons name="bag-check" size={18} color="#fff" />
+              }
+              <Text style={styles.primaryBtnTxt}>Picked Up</Text>
+            </Pressable>
           )}
 
           {/* Delivery gate: rider enters customer's Delivery OTP → DELIVERED */}

@@ -6,8 +6,7 @@
 // POST /api/v1/partner/orders/:id/accept       → PLACED → CONFIRMED
 // POST /api/v1/partner/orders/:id/reject       → PLACED → CANCELLED  (restores qty)
 // POST /api/v1/partner/orders/:id/preparing    → CONFIRMED → PREPARING
-// POST /api/v1/partner/orders/:id/ready        → PREPARING → READY_FOR_PICKUP (generates tamperSealCode)
-// POST /api/v1/partner/orders/:id/seal         → tamperSealStatus NONE/SEALED → SEALED
+// POST /api/v1/partner/orders/:id/ready        → PREPARING → READY_FOR_PICKUP
 //
 // FSM enforced: every handler asserts the required fromStatus before writing.
 // OrderEvent created on every transition (array-form $transaction, no timeout risk).
@@ -24,13 +23,6 @@ const {
   emitOrderCancelled,
 } = require('../socket');
 
-// ─── Code helpers ────────────────────────────────────────────────────────────
-
-// Generates a random 4-digit numeric code, zero-padded.
-// Used for both pickup codes (partner → rider) and delivery OTPs (customer → rider).
-function generateCode() {
-  return String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
-}
 
 const router = express.Router();
 
@@ -373,43 +365,23 @@ router.post('/orders/:id/preparing', asyncH(async (req, res) => {
 }));
 
 // ─── POST /orders/:id/ready — PREPARING → READY_FOR_PICKUP ───────────────────
-//
-// Generates a unique 4-digit Pickup Code stored in tamperSealCode.
-// Partner shows this code to the rider at pickup — the rider enters it to
-// advance READY_FOR_PICKUP → PICKED_UP.  Customer never sees this code.
 
 router.post('/orders/:id/ready', asyncH(async (req, res) => {
   const order = await getOwnOrder(req.partner.id, req.params.id);
   assertTransition(order.status, ['PREPARING'], 'READY_FOR_PICKUP');
 
   const { note } = req.body || {};
-
-  // Generate pickup code. Retry once on the vanishingly rare collision
-  // (P2002 on tamperSealCode @unique). In practice one call is always enough.
-  let pickupCode = generateCode();
-  let committed = false;
-  for (let attempt = 0; attempt < 2 && !committed; attempt++) {
-    try {
-      await commitTransition(
-        order,
-        'READY_FOR_PICKUP',
-        { tamperSealCode: pickupCode },
-        note ? String(note).trim() : 'Order is packed and ready for pickup',
-        req.user.id,
-      );
-      committed = true;
-    } catch (err) {
-      if (err.code === 'P2002' && attempt === 0) {
-        pickupCode = generateCode(); // retry with a new code
-      } else {
-        throw err;
-      }
-    }
-  }
+  await commitTransition(
+    order,
+    'READY_FOR_PICKUP',
+    {},
+    note ? String(note).trim() : 'Order is packed and ready for pickup',
+    req.user.id,
+  );
 
   const updated = await fetchFullOrder(order.id);
   emitOrderReady(updated);
-  res.json({ order: updated, pickupCode });
+  res.json({ order: updated });
 }));
 
 // ─── GET /wallet — partner's own wallet + last 20 transactions ───────────────
