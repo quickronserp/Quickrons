@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,29 +14,28 @@ const STATUS_TO_STAGE = {
   CONFIRMED:         1,
   PREPARING:         1,
   READY_FOR_PICKUP:  2,
-  PICKED_UP:         3, // schema status — rider collected the order
+  PICKED_UP:         3,
   OUT_FOR_DELIVERY:  3,
   DELIVERED:         4,
-  CANCELLED:         4, // terminal — handled separately
-  FAILED:            4, // terminal
+  CANCELLED:         4,
+  FAILED:            4,
 };
 
 const STAGES = [
   { id: 'placed',    label: 'Order placed',      icon: 'checkmark-circle' },
   { id: 'cooking',   label: 'Kitchen accepted',  icon: 'restaurant' },
   { id: 'ready',     label: 'Ready for pickup',  icon: 'cube' },
-  { id: 'enroute',   label: 'Auto en route 🛺',  icon: 'car' },
+  { id: 'enroute',   label: 'Rider on the way',  icon: 'car' },
   { id: 'delivered', label: 'Delivered',         icon: 'home' },
 ];
 
-// Socket events that signal a status advance
+// Socket events that signal a status advance.
+// ORDER_SEALED and RIDER_VERIFIED_SEAL are removed — backend no longer emits them.
 const ADVANCE_EVENTS = [
   'ORDER_CONFIRMED',
   'ORDER_PREPARING',
   'ORDER_READY',
-  'ORDER_SEALED',
   'RIDER_ASSIGNED',
-  'RIDER_VERIFIED_SEAL',  // was missing — status advances to OUT_FOR_DELIVERY on this event
   'ORDER_PICKED_UP',
   'ORDER_DELIVERED',
   'ORDER_CANCELLED',
@@ -55,7 +54,6 @@ export default function TrackingScreen({ route, navigation }) {
     queryFn:  () => ordersApi.get(orderId, accessToken),
     enabled:  !!accessToken && !!orderId,
     select:   (res) => res.order || res,
-    // Poll every 30s as a fallback even if socket misses
     refetchInterval: 30_000,
   });
 
@@ -64,12 +62,14 @@ export default function TrackingScreen({ route, navigation }) {
   const orderNumber = order?.orderNumber || '—';
   const rider       = order?.rider || null;
 
+  const isDelivered = status === 'DELIVERED';
+  const isFailed    = status === 'FAILED';
+
   // ── Socket.IO ──────────────────────────────────────────────────────────────
 
   const invalidate = useRef(() =>
     queryClient.invalidateQueries({ queryKey: ['order', orderId] })
   );
-  // Keep ref current without re-registering listeners
   invalidate.current = () =>
     queryClient.invalidateQueries({ queryKey: ['order', orderId] });
 
@@ -166,9 +166,6 @@ export default function TrackingScreen({ route, navigation }) {
 
   const etaMins = Math.max(2, 30 - stage * 6);
 
-  const isDelivered = status === 'DELIVERED';
-  const isFailed    = status === 'FAILED';
-
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
       <View style={styles.header}>
@@ -185,10 +182,10 @@ export default function TrackingScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg }}>
-        {/* ETA card */}
+        {/* ETA / status card */}
         {isDelivered ? (
           <View style={[styles.etaCard, { backgroundColor: colors.success }]}>
-            <Text style={styles.etaLabel}>Order delivered ✓</Text>
+            <Text style={styles.etaLabel}>Delivered ✓</Text>
             <Text style={styles.etaTime}>Enjoy!</Text>
             <Text style={styles.etaDesc}>Thank you for ordering with Quickrons</Text>
           </View>
@@ -227,7 +224,10 @@ export default function TrackingScreen({ route, navigation }) {
           ))}
         </View>
 
-        {/* Rider card — show once assigned */}
+        {/* Rider card:
+            - Show rider info once assigned.
+            - Show "Finding your rider…" spinner only between READY_FOR_PICKUP and PICKED_UP.
+            - Never show for DELIVERED or FAILED — the delivery is complete. */}
         {rider ? (
           <View style={styles.riderCard}>
             <View style={styles.riderAvatar}>
@@ -235,13 +235,15 @@ export default function TrackingScreen({ route, navigation }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.riderName}>{rider.fullName || 'Your rider'}</Text>
-              <Text style={styles.riderMeta}>Auto · Quickrons</Text>
+              <Text style={styles.riderMeta}>
+                {rider.vehicleType ? rider.vehicleType.replace('_', ' ') : 'Auto'} · Quickrons
+              </Text>
             </View>
             <Pressable style={styles.callBtn}>
               <Ionicons name="call" size={18} color={colors.brand} />
             </Pressable>
           </View>
-        ) : stage >= 2 ? (
+        ) : stage >= 2 && !isDelivered && !isFailed ? (
           <View style={styles.riderCard}>
             <View style={[styles.riderAvatar, { backgroundColor: colors.bgAlt }]}>
               <ActivityIndicator size="small" color={colors.brand} />
@@ -252,7 +254,7 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {/* Delivery OTP — visible to customer only after rider picks up */}
+        {/* Delivery OTP — customer reads this code to the rider at door */}
         {status === 'PICKED_UP' && order?.deliveryOtp && (
           <View style={styles.verifyCard}>
             <View style={styles.verifyHeader}>
@@ -267,12 +269,12 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Done button */}
-        {status === 'DELIVERED' && (
+        {/* Done button — goes home, no fake rating promise */}
+        {isDelivered && (
           <Pressable
             onPress={() => navigation.navigate('HomeTab')}
             style={styles.doneBtn}>
-            <Text style={styles.doneTxt}>Order delivered — Rate your experience</Text>
+            <Text style={styles.doneTxt}>Done — browse more kitchens</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -333,13 +335,6 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.brand,
   },
-  trustCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: colors.success + '10', padding: space.md, borderRadius: radii.md,
-    marginTop: space.md,
-  },
-  trustTitle: { fontSize: 13, fontWeight: '800', color: colors.success },
-  trustDesc:  { fontSize: 12, color: colors.success, marginTop: 2, lineHeight: 18 },
   doneBtn: {
     backgroundColor: colors.brand, borderRadius: radii.md, padding: 14,
     alignItems: 'center', marginTop: space.xl,
