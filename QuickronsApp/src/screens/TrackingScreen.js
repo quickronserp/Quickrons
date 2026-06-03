@@ -1,14 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
+  Modal, TextInput, Linking, Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '../lib/api';
 import { useAuth } from '../state/AuthContext';
 import socketClient from '../lib/socket';
+import * as storage from '../lib/storage';
 import { colors, radii, space } from '../theme';
 
-// Map backend order status → UI stage index
+// ── Status → stage index ───────────────────────────────────────────────────────
+
 const STATUS_TO_STAGE = {
   PLACED:            0,
   CONFIRMED:         1,
@@ -22,50 +27,156 @@ const STATUS_TO_STAGE = {
 };
 
 const STAGES = [
-  { id: 'placed',    label: 'Order placed',      icon: 'checkmark-circle' },
-  { id: 'cooking',   label: 'Kitchen accepted',  icon: 'restaurant' },
-  { id: 'ready',     label: 'Ready for pickup',  icon: 'cube' },
-  { id: 'enroute',   label: 'Rider on the way',  icon: 'car' },
-  { id: 'delivered', label: 'Delivered',         icon: 'home' },
+  { id: 'placed',    label: 'Order placed',     icon: 'checkmark-circle' },
+  { id: 'cooking',   label: 'Kitchen accepted', icon: 'restaurant' },
+  { id: 'ready',     label: 'Ready for pickup', icon: 'cube' },
+  { id: 'enroute',   label: 'Rider on the way', icon: 'car' },
+  { id: 'delivered', label: 'Delivered',        icon: 'home' },
 ];
 
-// Socket events that signal a status advance.
-// ORDER_SEALED and RIDER_VERIFIED_SEAL are removed — backend no longer emits them.
+// Socket events that signal a status advance (no tamper-seal events)
 const ADVANCE_EVENTS = [
-  'ORDER_CONFIRMED',
-  'ORDER_PREPARING',
-  'ORDER_READY',
-  'RIDER_ASSIGNED',
-  'ORDER_PICKED_UP',
-  'ORDER_DELIVERED',
-  'ORDER_CANCELLED',
+  'ORDER_CONFIRMED', 'ORDER_PREPARING', 'ORDER_READY',
+  'RIDER_ASSIGNED', 'ORDER_PICKED_UP', 'ORDER_DELIVERED', 'ORDER_CANCELLED',
 ];
+
+// Timeout-safe fetch — rejects after `ms` milliseconds
+function withTimeout(promise, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return promise.finally(() => clearTimeout(timer));
+}
+
+// ── Rating storage ─────────────────────────────────────────────────────────────
+
+async function loadRating(orderId) {
+  try {
+    const raw = await storage.getItem(`rating:${orderId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+async function saveRating(orderId, stars, note) {
+  try {
+    await storage.setItem(`rating:${orderId}`, JSON.stringify({ stars, note, savedAt: Date.now() }));
+  } catch {}
+}
+
+// ── RatingModal ────────────────────────────────────────────────────────────────
+
+function RatingModal({ orderId, visible, onClose }) {
+  const [stars, setStars] = useState(0);
+  const [note,  setNote]  = useState('');
+  const [saved, setSaved] = useState(false);
+
+  // Load existing rating on open
+  useEffect(() => {
+    if (!visible) return;
+    loadRating(orderId).then(r => {
+      if (r) { setStars(r.stars); setNote(r.note || ''); setSaved(true); }
+      else   { setStars(0); setNote(''); setSaved(false); }
+    });
+  }, [visible, orderId]);
+
+  async function submit() {
+    if (stars === 0) { Alert.alert('Rate your experience', 'Please tap a star to continue.'); return; }
+    await saveRating(orderId, stars, note.trim());
+    setSaved(true);
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={ratingStyles.backdrop} onPress={onClose}>
+        <Pressable style={ratingStyles.sheet} onPress={e => e.stopPropagation()}>
+          <View style={ratingStyles.handle} />
+
+          {saved ? (
+            <>
+              <Ionicons name="checkmark-circle" size={48} color={colors.success} style={{ alignSelf: 'center', marginBottom: 8 }} />
+              <Text style={ratingStyles.title}>Thank you!</Text>
+              <Text style={ratingStyles.sub}>Your feedback helps us improve Quickrons.</Text>
+              <Pressable onPress={onClose} style={ratingStyles.doneBtn}>
+                <Text style={ratingStyles.doneBtnTxt}>Close</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={ratingStyles.title}>How was your order?</Text>
+              <Text style={ratingStyles.sub}>Tap a star to rate your experience.</Text>
+
+              <View style={ratingStyles.starsRow}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <Pressable key={n} onPress={() => setStars(n)} hitSlop={8}>
+                    <Ionicons
+                      name={n <= stars ? 'star' : 'star-outline'}
+                      size={40}
+                      color={n <= stars ? colors.accent : colors.inkMuted}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+
+              <TextInput
+                style={ratingStyles.noteInput}
+                placeholder="Tell us more (optional)"
+                placeholderTextColor={colors.inkMuted}
+                value={note}
+                onChangeText={setNote}
+                multiline
+                maxLength={200}
+              />
+
+              <Pressable onPress={submit} style={ratingStyles.submitBtn}>
+                <Text style={ratingStyles.submitBtnTxt}>Submit</Text>
+              </Pressable>
+
+              <Pressable onPress={onClose} style={ratingStyles.skipBtn}>
+                <Text style={ratingStyles.skipBtnTxt}>Skip</Text>
+              </Pressable>
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+// ── Main screen ────────────────────────────────────────────────────────────────
 
 export default function TrackingScreen({ route, navigation }) {
   const { orderId } = route.params || {};
   const { accessToken } = useAuth();
   const queryClient = useQueryClient();
   const [cancelled, setCancelled] = useState(false);
+  const [showRating, setShowRating] = useState(false);
 
-  // ── Fetch order ────────────────────────────────────────────────────────────
+  // ── Fetch order (10 s timeout, 1 retry) ────────────────────────────────────
 
-  const { data: order, isLoading, isError } = useQuery({
+  const { data: order, isLoading, isError, refetch } = useQuery({
     queryKey: ['order', orderId],
-    queryFn:  () => ordersApi.get(orderId, accessToken),
+    queryFn:  () => withTimeout(ordersApi.get(orderId, accessToken), 10_000),
     enabled:  !!accessToken && !!orderId,
     select:   (res) => res.order || res,
-    refetchInterval: 30_000,
+    staleTime:       15_000,
+    retry:           1,
+    // Stop background polling once delivered/failed/cancelled — order won't change
+    refetchInterval: (data) => {
+      const s = data?.status;
+      if (s === 'DELIVERED' || s === 'CANCELLED' || s === 'FAILED') return false;
+      return 30_000;
+    },
   });
 
   const status      = order?.status || 'PLACED';
   const stage       = STATUS_TO_STAGE[status] ?? 0;
   const orderNumber = order?.orderNumber || '—';
   const rider       = order?.rider || null;
+  const riderPhone  = rider?.user?.phone || null;
 
   const isDelivered = status === 'DELIVERED';
   const isFailed    = status === 'FAILED';
 
-  // ── Socket.IO ──────────────────────────────────────────────────────────────
+  // ── Socket ─────────────────────────────────────────────────────────────────
 
   const invalidate = useRef(() =>
     queryClient.invalidateQueries({ queryKey: ['order', orderId] })
@@ -75,36 +186,30 @@ export default function TrackingScreen({ route, navigation }) {
 
   useEffect(() => {
     if (!orderId) return;
-
     socketClient.connect();
     socketClient.joinOrder(orderId);
 
-    const handleAdvance = () => invalidate.current();
-    const handleCancelled = () => {
-      setCancelled(true);
-      invalidate.current();
-    };
+    const handleAdvance   = () => invalidate.current();
+    const handleCancelled = () => { setCancelled(true); invalidate.current(); };
 
-    ADVANCE_EVENTS.forEach(evt => {
-      if (evt === 'ORDER_CANCELLED') {
-        socketClient.on(evt, handleCancelled);
-      } else {
-        socketClient.on(evt, handleAdvance);
-      }
-    });
-
-    return () => {
-      ADVANCE_EVENTS.forEach(evt => {
-        if (evt === 'ORDER_CANCELLED') {
-          socketClient.off(evt, handleCancelled);
-        } else {
-          socketClient.off(evt, handleAdvance);
-        }
-      });
-    };
+    ADVANCE_EVENTS.forEach(evt =>
+      socketClient.on(evt, evt === 'ORDER_CANCELLED' ? handleCancelled : handleAdvance)
+    );
+    return () => ADVANCE_EVENTS.forEach(evt =>
+      socketClient.off(evt, evt === 'ORDER_CANCELLED' ? handleCancelled : handleAdvance)
+    );
   }, [orderId]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Call rider ─────────────────────────────────────────────────────────────
+
+  const callRider = useCallback(() => {
+    if (!riderPhone) return;
+    Linking.openURL(`tel:${riderPhone}`).catch(() =>
+      Alert.alert('Cannot call', 'Your device cannot make calls right now.')
+    );
+  }, [riderPhone]);
+
+  // ── Render helpers ─────────────────────────────────────────────────────────
 
   if (!orderId) {
     return (
@@ -132,8 +237,11 @@ export default function TrackingScreen({ route, navigation }) {
       <SafeAreaView style={styles.center} edges={['top']}>
         <Ionicons name="cloud-offline-outline" size={40} color={colors.inkMuted} />
         <Text style={styles.statusTxt}>Couldn't load order</Text>
-        <Pressable onPress={() => navigation.navigate('HomeTab')} style={styles.homeBtn}>
-          <Text style={styles.homeBtnTxt}>Go home</Text>
+        <Pressable onPress={() => refetch()} style={styles.homeBtn}>
+          <Text style={styles.homeBtnTxt}>Retry</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate('HomeTab')} style={[styles.homeBtn, { backgroundColor: colors.bgAlt, marginTop: 8 }]}>
+          <Text style={[styles.homeBtnTxt, { color: colors.inkSoft }]}>Go home</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -182,18 +290,19 @@ export default function TrackingScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: space.lg }}>
+
         {/* ETA / status card */}
         {isDelivered ? (
           <View style={[styles.etaCard, { backgroundColor: colors.success }]}>
             <Text style={styles.etaLabel}>Delivered ✓</Text>
-            <Text style={styles.etaTime}>Enjoy!</Text>
+            <Text style={styles.etaTime}>Enjoy your meal!</Text>
             <Text style={styles.etaDesc}>Thank you for ordering with Quickrons</Text>
           </View>
         ) : isFailed ? (
           <View style={[styles.etaCard, { backgroundColor: colors.danger }]}>
             <Text style={styles.etaLabel}>Order failed</Text>
             <Text style={styles.etaTime}>Sorry</Text>
-            <Text style={styles.etaDesc}>Something went wrong with this order</Text>
+            <Text style={styles.etaDesc}>Contact support for assistance</Text>
           </View>
         ) : (
           <View style={styles.etaCard}>
@@ -208,11 +317,7 @@ export default function TrackingScreen({ route, navigation }) {
           {STAGES.map((s, i) => (
             <View key={s.id} style={styles.stageRow}>
               <View style={[styles.stageIcon, i <= stage && styles.stageIconActive]}>
-                <Ionicons
-                  name={s.icon}
-                  size={16}
-                  color={i <= stage ? '#fff' : colors.inkMuted}
-                />
+                <Ionicons name={s.icon} size={16} color={i <= stage ? '#fff' : colors.inkMuted} />
               </View>
               <Text style={[styles.stageLabel, i <= stage && styles.stageLabelActive]}>
                 {s.label}
@@ -224,10 +329,10 @@ export default function TrackingScreen({ route, navigation }) {
           ))}
         </View>
 
-        {/* Rider card:
-            - Show rider info once assigned.
-            - Show "Finding your rider…" spinner only between READY_FOR_PICKUP and PICKED_UP.
-            - Never show for DELIVERED or FAILED — the delivery is complete. */}
+        {/* Rider card
+            • Show rider info (with call button) once assigned.
+            • "Finding your rider…" only while READY_FOR_PICKUP / PICKED_UP and no rider yet.
+            • Never shown for DELIVERED or FAILED. */}
         {rider ? (
           <View style={styles.riderCard}>
             <View style={styles.riderAvatar}>
@@ -236,12 +341,18 @@ export default function TrackingScreen({ route, navigation }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.riderName}>{rider.fullName || 'Your rider'}</Text>
               <Text style={styles.riderMeta}>
-                {rider.vehicleType ? rider.vehicleType.replace('_', ' ') : 'Auto'} · Quickrons
+                {rider.vehicleType ? rider.vehicleType.replace('_', ' ') : 'Quickrons'} · Quickrons
               </Text>
             </View>
-            <Pressable style={styles.callBtn}>
-              <Ionicons name="call" size={18} color={colors.brand} />
-            </Pressable>
+            {riderPhone ? (
+              <Pressable onPress={callRider} style={styles.callBtn}>
+                <Ionicons name="call" size={18} color={colors.brand} />
+              </Pressable>
+            ) : (
+              <View style={[styles.callBtn, { borderColor: colors.border }]}>
+                <Ionicons name="call" size={18} color={colors.inkMuted} />
+              </View>
+            )}
           </View>
         ) : stage >= 2 && !isDelivered && !isFailed ? (
           <View style={styles.riderCard}>
@@ -269,18 +380,33 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Done button — goes home, no fake rating promise */}
+        {/* Delivered — rate + done */}
         {isDelivered && (
-          <Pressable
-            onPress={() => navigation.navigate('HomeTab')}
-            style={styles.doneBtn}>
-            <Text style={styles.doneTxt}>Done — browse more kitchens</Text>
-          </Pressable>
+          <View style={{ gap: 10, marginTop: space.xl }}>
+            <Pressable onPress={() => setShowRating(true)} style={styles.rateBtn}>
+              <Ionicons name="star" size={18} color={colors.accent} />
+              <Text style={styles.rateBtnTxt}>Rate your experience</Text>
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate('HomeTab')} style={styles.doneBtn}>
+              <Text style={styles.doneTxt}>Back to home</Text>
+            </Pressable>
+          </View>
         )}
       </ScrollView>
+
+      {/* Rating modal */}
+      {orderId && (
+        <RatingModal
+          orderId={orderId}
+          visible={showRating}
+          onClose={() => setShowRating(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   header: {
@@ -299,16 +425,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 10, marginTop: 8,
   },
   homeBtnTxt: { color: '#fff', fontWeight: '800' },
-  etaCard: {
-    backgroundColor: colors.ink, padding: space.lg, borderRadius: radii.lg,
-  },
+  etaCard: { backgroundColor: colors.ink, padding: space.lg, borderRadius: radii.lg },
   etaLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },
   etaTime:  { color: '#fff', fontSize: 36, fontWeight: '800', marginTop: 4 },
   etaDesc:  { color: colors.accent, fontSize: 14, fontWeight: '700', marginTop: 4 },
   stages: { marginTop: space.xl },
-  stageRow: {
-    flexDirection: 'row', alignItems: 'center', position: 'relative', marginBottom: 22,
-  },
+  stageRow: { flexDirection: 'row', alignItems: 'center', position: 'relative', marginBottom: 22 },
   stageIcon: {
     width: 30, height: 30, borderRadius: 15, backgroundColor: colors.bgAlt,
     alignItems: 'center', justifyContent: 'center', marginRight: 12,
@@ -316,10 +438,7 @@ const styles = StyleSheet.create({
   stageIconActive: { backgroundColor: colors.success },
   stageLabel: { fontSize: 14, color: colors.inkMuted, fontWeight: '600' },
   stageLabelActive: { color: colors.ink, fontWeight: '700' },
-  connector: {
-    position: 'absolute', left: 14, top: 30, width: 2, height: 22,
-    backgroundColor: colors.border,
-  },
+  connector: { position: 'absolute', left: 14, top: 30, width: 2, height: 22, backgroundColor: colors.border },
   connectorActive: { backgroundColor: colors.success },
   riderCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -333,17 +452,11 @@ const styles = StyleSheet.create({
   riderMeta: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
   callBtn: {
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.brand,
+    borderWidth: 1.5, borderColor: colors.brand,
   },
-  doneBtn: {
-    backgroundColor: colors.brand, borderRadius: radii.md, padding: 14,
-    alignItems: 'center', marginTop: space.xl,
-  },
-  doneTxt: { color: '#fff', fontWeight: '800', fontSize: 14 },
   verifyCard: {
     backgroundColor: colors.brandTint, borderRadius: radii.md, padding: space.md,
-    marginTop: space.md, borderWidth: 1, borderColor: colors.brand + '40',
-    alignItems: 'center',
+    marginTop: space.md, borderWidth: 1, borderColor: colors.brand + '40', alignItems: 'center',
   },
   verifyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   verifyTitle: { fontSize: 15, fontWeight: '800', color: colors.brand },
@@ -352,4 +465,52 @@ const styles = StyleSheet.create({
     fontSize: 48, fontWeight: '900', color: colors.brand,
     letterSpacing: 14, textAlign: 'center', paddingVertical: 8,
   },
+  rateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.accent + '18', borderRadius: radii.md, padding: 14,
+    borderWidth: 1, borderColor: colors.accent + '40',
+  },
+  rateBtnTxt: { color: colors.accent, fontWeight: '800', fontSize: 15 },
+  doneBtn: {
+    backgroundColor: colors.bgAlt, borderRadius: radii.md, padding: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: colors.border,
+  },
+  doneTxt: { color: colors.inkSoft, fontWeight: '700', fontSize: 14 },
+});
+
+const ratingStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.bg, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
+    padding: space.xl, paddingBottom: 36,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border,
+    alignSelf: 'center', marginBottom: space.lg,
+  },
+  title: { fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 4 },
+  sub:   { fontSize: 14, color: colors.inkSoft, textAlign: 'center', marginBottom: space.lg },
+  starsRow: {
+    flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: space.lg,
+  },
+  noteInput: {
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md,
+    padding: space.md, fontSize: 14, color: colors.ink,
+    minHeight: 80, textAlignVertical: 'top', marginBottom: space.md,
+  },
+  submitBtn: {
+    backgroundColor: colors.brand, borderRadius: radii.md, padding: 14, alignItems: 'center',
+    marginBottom: space.sm,
+  },
+  submitBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  skipBtn:  { alignItems: 'center', padding: 10 },
+  skipBtnTxt: { color: colors.inkMuted, fontWeight: '600', fontSize: 14 },
+  doneBtn: {
+    backgroundColor: colors.brand, borderRadius: radii.md, padding: 14,
+    alignItems: 'center', marginTop: space.md,
+  },
+  doneBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
