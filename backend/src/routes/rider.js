@@ -602,14 +602,20 @@ router.get('/me/orders', asyncH(async (req, res) => {
         orderNumber:     true,
         status:          true,
         customerName:    true,
+        customerPhone:   true,   // for rider call-customer button
         itemCount:       true,
         totalPaise:      true,
         paymentMethod:   true,
         paymentStatus:   true,
         addrLine1:       true,
+        addrLine2:       true,
+        addrLandmark:    true,
         addrCity:        true,
         addrPincode:     true,
-        deliveryOtp:     true,   // not shown to rider — rider enters it, customer reads it
+        addrLat:         true,   // for map navigation
+        addrLng:         true,
+        addrNotes:       true,
+        deliveryOtp:     true,   // rider enters, customer reads
         pickedUpAt:      true,
         deliveredAt:     true,
         createdAt:       true,

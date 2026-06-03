@@ -29,7 +29,13 @@ const ORDER_INCLUDE = {
     orderBy: { name: 'asc' },
   },
   rider: {
-    select: { id: true, fullName: true, vehicleType: true, vehicleNumber: true },
+    select: {
+      id:            true,
+      fullName:      true,
+      vehicleType:   true,
+      vehicleNumber: true,
+      user: { select: { phone: true } },
+    },
   },
   events: {
     orderBy: { createdAt: 'asc' },
