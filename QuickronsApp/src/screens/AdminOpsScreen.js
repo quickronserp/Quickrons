@@ -56,7 +56,7 @@ export default function AdminOpsScreen({ navigation }) {
 
   const fetchData = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    setError(null);
+    if (!quiet) setError(null);
     try {
       const [ordRes, analRes, walRes, partRes, ridRes, stuckRes] = await Promise.allSettled([
         adminApi.orders(accessToken, statusFilter || undefined),
@@ -77,14 +77,23 @@ export default function AdminOpsScreen({ navigation }) {
       const firstFail = [ordRes, analRes].find(r => r.status === 'rejected');
       if (firstFail) throw firstFail.reason;
     } catch (e) {
-      setError(e.message || 'Failed to load admin data');
+      if (!quiet) setError(e.message || 'Failed to load admin data');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [accessToken, statusFilter]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Track whether we've done the initial load so filter changes use quiet mode.
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      fetchData(false); // full loading screen on first mount only
+    } else {
+      fetchData(true);  // filter change — quiet refresh, no full-screen spinner
+    }
+  }, [fetchData]);
 
   useEffect(() => {
     pollRef.current = setInterval(() => fetchData(true), 15_000);
@@ -236,7 +245,6 @@ export default function AdminOpsScreen({ navigation }) {
                   {paise(o.totalPaise)} · {o.paymentMethod}
                 </Text>
               </View>
-              <Text style={styles.metaTxt}>🔒 {o.tamperSealStatus || 'NONE'}</Text>
               {!isTerminal && (
                 <Pressable
                   onPress={() => cancelOrder(o.id)}
