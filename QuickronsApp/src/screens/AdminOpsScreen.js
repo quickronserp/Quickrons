@@ -186,7 +186,7 @@ export default function AdminOpsScreen({ navigation }) {
               setFilter={() => setStatusFilter('OUT_FOR_DELIVERY')}
             />
             <StuckBucket
-              label="Customer hasn't verified code"
+              label="Delivery OTP pending — rider at door"
               icon="key"
               orders={stuck.buckets.awaitingCustomer}
               setFilter={() => setStatusFilter('PICKED_UP')}
