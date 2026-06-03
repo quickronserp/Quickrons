@@ -65,7 +65,8 @@ export default function PartnerOpsScreen({ navigation }) {
 
   const fetchOrders = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    setError(null);
+    // Don't clear error on quiet/background refresh — only clear on explicit load
+    if (!quiet) setError(null);
     try {
       // Two parallel fetches: the visible list AND today's DELIVERED orders
       // (for the summary tile). The DELIVERED fetch is cheap — capped at 50
@@ -101,7 +102,9 @@ export default function PartnerOpsScreen({ navigation }) {
       const grossPaise = todays.reduce((sum, o) => sum + Number(o.totalPaise || 0), 0);
       setTodayStats({ count: todays.length, grossPaise });
     } catch (e) {
-      setError(e.message || 'Failed to load orders');
+      // Only surface errors on non-quiet (initial/manual) fetches.
+      // Background poll failures are silent — stale data is better than a wipe.
+      if (!quiet) setError(e.message || 'Failed to load orders');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -133,9 +136,12 @@ export default function PartnerOpsScreen({ navigation }) {
   useEffect(() => {
     socketClient.connect();
     const refresh = () => fetchOrders(true);
+    // ORDER_SEALED removed — backend no longer emits it.
+    // ORDER_PICKED_UP and ORDER_DELIVERED added so the board refreshes
+    // when the rider picks up or completes delivery.
     const PARTNER_EVENTS = [
       'ORDER_PLACED', 'ORDER_CONFIRMED', 'ORDER_PREPARING',
-      'ORDER_READY', 'ORDER_SEALED', 'ORDER_CANCELLED',
+      'ORDER_READY', 'ORDER_PICKED_UP', 'ORDER_DELIVERED', 'ORDER_CANCELLED',
     ];
     PARTNER_EVENTS.forEach(e => socketClient.on(e, refresh));
     return () => PARTNER_EVENTS.forEach(e => socketClient.off(e, refresh));
