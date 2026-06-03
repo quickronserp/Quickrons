@@ -10,7 +10,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  ActivityIndicator, RefreshControl, TextInput, Alert,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,8 +55,8 @@ export default function PartnerOpsScreen({ navigation }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [actionLoading, setActionLoading] = useState({}); // { [orderId]: true }
-  const [rejectInput, setRejectInput] = useState({});     // { [orderId]: text }
+  // { [orderId]: 'accept'|'reject'|'preparing'|'ready' } — active action per order
+  const [actionLoading, setActionLoading] = useState({});
   const [error, setError] = useState(null);
   // Today summary — derived from the most-recent DELIVERED orders, filtered to
   // today's calendar date. Refreshes on every poll alongside the active list.
@@ -149,21 +149,27 @@ export default function PartnerOpsScreen({ navigation }) {
 
   const onRefresh = () => { setRefreshing(true); fetchOrders(); };
 
-  async function doAction(orderId, actionFn) {
-    setActionLoading(prev => ({ ...prev, [orderId]: true }));
+  // actionKey: 'accept' | 'reject' | 'preparing' | 'ready'
+  // Stored in actionLoading so each button can show its own spinner
+  // while all buttons for that order remain disabled.
+  async function doAction(orderId, actionKey, actionFn) {
+    setActionLoading(prev => ({ ...prev, [orderId]: actionKey }));
     try {
       await actionFn();
       await fetchOrders(true);
     } catch (e) {
       Alert.alert('Error', e.message || 'Action failed');
     } finally {
-      setActionLoading(prev => ({ ...prev, [orderId]: false }));
+      setActionLoading(prev => { const n = { ...prev }; delete n[orderId]; return n; });
     }
   }
 
   function renderOrderCard(order) {
-    const busy = actionLoading[order.id];
-    const s    = order.status;
+    // activeAction: the action key currently running for this order (or undefined)
+    const activeAction = actionLoading[order.id];
+    // anyBusy: true when ANY action is running — disables all buttons
+    const anyBusy = !!activeAction;
+    const s = order.status;
 
     return (
       <View key={order.id} style={styles.card}>
@@ -198,7 +204,7 @@ export default function PartnerOpsScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Action buttons — ACCEPTED → PREPARING → READY_FOR_PICKUP */}
+        {/* Action buttons — each shows its own spinner; all disabled while any runs */}
         <View style={styles.actions}>
           {s === 'PLACED' && (
             <>
@@ -206,20 +212,22 @@ export default function PartnerOpsScreen({ navigation }) {
                 label="Accept"
                 icon="checkmark-circle"
                 color={colors.success}
-                busy={busy}
-                onPress={() => doAction(order.id, () => partnerApi.accept(order.id, accessToken))}
+                spinning={activeAction === 'accept'}
+                disabled={anyBusy}
+                onPress={() => doAction(order.id, 'accept', () => partnerApi.accept(order.id, accessToken))}
               />
               <ActionBtn
                 label="Reject"
                 icon="close-circle"
                 color={colors.danger}
-                busy={busy}
+                spinning={activeAction === 'reject'}
+                disabled={anyBusy}
                 onPress={() => {
                   Alert.alert('Reject Order', 'Reason (optional)?', [
                     { text: 'Cancel', style: 'cancel' },
                     { text: 'Reject', style: 'destructive',
-                      onPress: () => doAction(order.id,
-                        () => partnerApi.reject(order.id, rejectInput[order.id] || '', accessToken))
+                      onPress: () => doAction(order.id, 'reject',
+                        () => partnerApi.reject(order.id, '', accessToken))
                     },
                   ]);
                 }}
@@ -231,8 +239,9 @@ export default function PartnerOpsScreen({ navigation }) {
               label="Start Preparing"
               icon="restaurant"
               color={colors.brand}
-              busy={busy}
-              onPress={() => doAction(order.id, () => partnerApi.preparing(order.id, accessToken))}
+              spinning={activeAction === 'preparing'}
+              disabled={anyBusy}
+              onPress={() => doAction(order.id, 'preparing', () => partnerApi.preparing(order.id, accessToken))}
             />
           )}
           {s === 'PREPARING' && (
@@ -240,8 +249,9 @@ export default function PartnerOpsScreen({ navigation }) {
               label="Mark Ready"
               icon="checkmark-done"
               color={colors.success}
-              busy={busy}
-              onPress={() => doAction(order.id, () => partnerApi.ready(order.id, accessToken))}
+              spinning={activeAction === 'ready'}
+              disabled={anyBusy}
+              onPress={() => doAction(order.id, 'ready', () => partnerApi.ready(order.id, accessToken))}
             />
           )}
           {s === 'READY_FOR_PICKUP' && (
@@ -383,14 +393,16 @@ export default function PartnerOpsScreen({ navigation }) {
   );
 }
 
-function ActionBtn({ label, icon, color, busy, onPress }) {
+// spinning: show spinner on THIS button
+// disabled: prevent press (used when any action is running for this order)
+function ActionBtn({ label, icon, color, spinning, disabled, onPress }) {
   return (
     <Pressable
       onPress={onPress}
-      disabled={busy}
-      style={[styles.actionBtn, { backgroundColor: color }]}
+      disabled={disabled}
+      style={[styles.actionBtn, { backgroundColor: color }, disabled && styles.actionBtnDisabled]}
     >
-      {busy
+      {spinning
         ? <ActivityIndicator size="small" color="#fff" />
         : <Ionicons name={icon} size={16} color="#fff" />
       }
@@ -486,5 +498,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: radii.sm, flex: 1,
     justifyContent: 'center', minWidth: 100,
   },
+  actionBtnDisabled: { opacity: 0.55 },
   actionBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
 });
