@@ -124,8 +124,6 @@ export const partnerApi = {
     request(`/api/v1/partner/orders/${id}/preparing`, { method: 'POST', token }),
   ready:     (id, token) =>
     request(`/api/v1/partner/orders/${id}/ready`,     { method: 'POST', token }),
-  seal:      (id, token) =>
-    request(`/api/v1/partner/orders/${id}/seal`,      { method: 'POST', token }),
   wallet:    (token) =>
     request('/api/v1/partner/wallet', { token }),
 };
