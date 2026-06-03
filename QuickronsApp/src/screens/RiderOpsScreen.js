@@ -6,7 +6,7 @@
 //   POST /api/v1/rider/orders/:id/accept
 //   POST /api/v1/rider/orders/:id/picked-up      (no code — system generates delivery OTP)
 //   POST /api/v1/rider/orders/:id/delivered      { code }  ← delivery OTP from customer
-//   GET  /api/v1/rider/me/orders         (active)
+//   GET  /api/v1/rider/me/orders         (active + recent delivered)
 //   GET  /api/v1/rider/wallet
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -36,21 +36,22 @@ function paise(p) { return `₹${(Number(p) / 100).toFixed(0)}`; }
 export default function RiderOpsScreen({ navigation }) {
   const { accessToken, user, signOut } = useAuth();
 
-  const [profile, setProfile]         = useState(null);
-  const [available, setAvailable]     = useState([]);
+  const [profile, setProfile]           = useState(null);
+  const [available, setAvailable]       = useState([]);
   const [activeOrders, setActiveOrders] = useState([]);
-  const [wallet, setWallet]           = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [refreshing, setRefreshing]   = useState(false);
+  const [recentDeliveries, setRecentDeliveries] = useState([]);
+  const [wallet, setWallet]             = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
   const [actionLoading, setActionLoading] = useState({});
-  const [otpInput, setOtpInput]           = useState({}); // { [orderId]: '0073' } delivery OTP from customer
-  const [error, setError]             = useState(null);
+  const [otpInput, setOtpInput]           = useState({}); // { [orderId]: '0073' }
+  const [error, setError]               = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const pollRef = useRef(null);
 
   const fetchAll = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    setError(null);
+    if (!quiet) setError(null);
     try {
       const [meRes, availRes, activeRes, walletRes] = await Promise.allSettled([
         riderOpsApi.me(accessToken),
@@ -63,18 +64,23 @@ export default function RiderOpsScreen({ navigation }) {
       if (availRes.status === 'fulfilled') setAvailable(availRes.value.orders || []);
       if (activeRes.status === 'fulfilled') {
         const all = activeRes.value.orders || [];
-        // Show in-progress orders (not terminal)
         setActiveOrders(all.filter(o =>
           ['READY_FOR_PICKUP', 'PICKED_UP'].includes(o.status)
         ));
+        // Show today's delivered orders as a history section below the active list.
+        const todayKey = new Date().toDateString();
+        setRecentDeliveries(
+          all
+            .filter(o => o.status === 'DELIVERED' &&
+              new Date(o.deliveredAt || o.createdAt).toDateString() === todayKey)
+            .slice(0, 10)
+        );
       }
       if (walletRes.status === 'fulfilled') setWallet(walletRes.value.wallet);
 
-      if (meRes.status === 'rejected') {
-        throw meRes.reason;
-      }
+      if (meRes.status === 'rejected') throw meRes.reason;
     } catch (e) {
-      setError(e.message || 'Failed to load');
+      if (!quiet) setError(e.message || 'Failed to load');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,27 +89,24 @@ export default function RiderOpsScreen({ navigation }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Faster polling for dispatch — the rider needs to see new available orders
-  // and status changes promptly. 7s strikes the balance between freshness
-  // and server load given socket updates are the primary push channel.
   useEffect(() => {
     pollRef.current = setInterval(() => fetchAll(true), 7_000);
     return () => clearInterval(pollRef.current);
   }, [fetchAll]);
 
-  // Socket: join rider's own room once profile is loaded
+  // Join rider socket room once profile is loaded
   useEffect(() => {
     if (!profile?.id) return;
     socketClient.connect();
     socketClient.joinRider(profile.id);
   }, [profile?.id]);
 
-  // Socket: listen for events relevant to this rider
+  // RIDER_VERIFIED_SEAL removed — backend no longer emits it.
   useEffect(() => {
     socketClient.connect();
     const refresh = () => fetchAll(true);
     const RIDER_EVENTS = [
-      'RIDER_ASSIGNED', 'RIDER_VERIFIED_SEAL', 'ORDER_PICKED_UP',
+      'RIDER_ASSIGNED', 'ORDER_PICKED_UP',
       'ORDER_DELIVERED', 'ORDER_CANCELLED', 'ORDER_READY',
     ];
     RIDER_EVENTS.forEach(e => socketClient.on(e, refresh));
@@ -126,10 +129,11 @@ export default function RiderOpsScreen({ navigation }) {
     }
   }
 
-  async function doAction(orderId, actionFn) {
+  async function doAction(orderId, actionFn, onSuccess) {
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       await actionFn();
+      if (onSuccess) onSuccess(orderId);
       await fetchAll(true);
     } catch (e) {
       Alert.alert('Error', e.message || 'Action failed');
@@ -174,7 +178,7 @@ export default function RiderOpsScreen({ navigation }) {
   function renderActiveOrder(order) {
     const busy  = actionLoading[order.id];
     const s     = order.status;
-    const dCode = otpInput[order.id] || '';  // delivery OTP entered by rider
+    const dCode = otpInput[order.id] || '';
 
     return (
       <View key={order.id} style={[styles.card, styles.activeCard]}>
@@ -197,7 +201,7 @@ export default function RiderOpsScreen({ navigation }) {
         </Text>
 
         <View style={styles.actions}>
-          {/* Pickup: rider taps Picked Up — no code needed, system generates delivery OTP */}
+          {/* READY_FOR_PICKUP: tap to confirm pickup, system generates delivery OTP */}
           {s === 'READY_FOR_PICKUP' && (
             <Pressable
               onPress={() => doAction(order.id, () => riderOpsApi.pickedUp(order.id, accessToken))}
@@ -212,7 +216,7 @@ export default function RiderOpsScreen({ navigation }) {
             </Pressable>
           )}
 
-          {/* Delivery gate: rider enters customer's Delivery OTP → DELIVERED */}
+          {/* PICKED_UP: rider enters the delivery OTP the customer reads from their screen */}
           {s === 'PICKED_UP' && (
             <View style={{ flex: 1 }}>
               <Text style={styles.otpInputLabel}>Enter Customer Delivery OTP</Text>
@@ -226,8 +230,12 @@ export default function RiderOpsScreen({ navigation }) {
                   onChangeText={t => setOtpInput(prev => ({ ...prev, [order.id]: t.replace(/\D/g, '') }))}
                 />
                 <Pressable
-                  onPress={() => doAction(order.id,
-                    () => riderOpsApi.delivered(order.id, dCode, accessToken))}
+                  onPress={() => doAction(
+                    order.id,
+                    () => riderOpsApi.delivered(order.id, dCode, accessToken),
+                    // Clear the OTP input once delivery is confirmed
+                    (id) => setOtpInput(prev => { const next = { ...prev }; delete next[id]; return next; }),
+                  )}
                   disabled={dCode.length !== 4 || busy}
                   style={[styles.deliverBtn,
                     (dCode.length !== 4 || busy) && styles.disabledBtn]}
@@ -241,6 +249,30 @@ export default function RiderOpsScreen({ navigation }) {
               </View>
             </View>
           )}
+        </View>
+      </View>
+    );
+  }
+
+  function renderRecentDelivery(order) {
+    const deliveredAt = order.deliveredAt ? new Date(order.deliveredAt) : null;
+    const timeStr = deliveredAt
+      ? deliveredAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    return (
+      <View key={order.id} style={styles.recentCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.recentOrderNum}>#{order.orderNumber}</Text>
+          <Text style={styles.recentMeta}>
+            {order.partner?.brand || 'Kitchen'} · {paise(order.totalPaise)}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <View style={styles.deliveredBadge}>
+            <Ionicons name="checkmark-circle" size={12} color={colors.success} />
+            <Text style={styles.deliveredBadgeTxt}>Delivered</Text>
+          </View>
+          {timeStr ? <Text style={styles.recentTime}>{timeStr}</Text> : null}
         </View>
       </View>
     );
@@ -341,7 +373,7 @@ export default function RiderOpsScreen({ navigation }) {
             </View>
           )}
 
-          {/* Active orders (in-progress) */}
+          {/* Active orders */}
           {activeOrders.length > 0 && (
             <>
               <Text style={styles.sectionTitle}>Your Active Deliveries</Text>
@@ -349,7 +381,7 @@ export default function RiderOpsScreen({ navigation }) {
             </>
           )}
 
-          {/* Available orders (queue) */}
+          {/* Available orders queue */}
           {isOnline ? (
             <>
               <Text style={styles.sectionTitle}>
@@ -369,6 +401,14 @@ export default function RiderOpsScreen({ navigation }) {
               <Ionicons name="radio-outline" size={40} color={colors.inkMuted} />
               <Text style={styles.emptyTxt}>Go online to see orders</Text>
             </View>
+          )}
+
+          {/* Recent deliveries (today) */}
+          {recentDeliveries.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>Completed Today</Text>
+              {recentDeliveries.map(renderRecentDelivery)}
+            </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -452,4 +492,19 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: 'center', paddingVertical: space.xl, gap: 8 },
   emptyTxt: { fontSize: 15, fontWeight: '700', color: colors.ink },
   emptyHint: { fontSize: 13, color: colors.inkMuted },
+  // Recent deliveries
+  recentCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: colors.bg, borderRadius: radii.md, padding: space.md,
+    marginBottom: space.sm, borderWidth: 1, borderColor: colors.border,
+  },
+  recentOrderNum: { fontSize: 14, fontWeight: '800', color: colors.ink },
+  recentMeta: { fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  deliveredBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: colors.success + '18', borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  deliveredBadgeTxt: { fontSize: 11, fontWeight: '700', color: colors.success },
+  recentTime: { fontSize: 11, color: colors.inkMuted, marginTop: 4 },
 });
