@@ -218,9 +218,9 @@ router.get('/orders/available', asyncH(async (req, res) => {
 
 // ─── POST /orders/:id/accept — assign rider (status stays READY_FOR_PICKUP) ───
 //
-// Assigns this rider to the order WITHOUT advancing the FSM status.
-// Status advances to OUT_FOR_DELIVERY only after the rider verifies the tamper
-// seal (/verify-seal), keeping the physical chain intact.
+// Assigns this rider to the order WITHOUT advancing the FSM status. The order
+// stays READY_FOR_PICKUP until the rider taps "Picked Up" (→ PICKED_UP). There
+// is no tamper-seal step and no OUT_FOR_DELIVERY hop in the MVP flow.
 //
 // Race-safe: atomic update().where({ status: READY_FOR_PICKUP, riderId: null })
 // so only one rider can claim the order. P2025 → clear 400.

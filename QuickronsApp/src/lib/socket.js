@@ -83,14 +83,6 @@ const socketClient = {
     socket.emit('join:order', { orderId });
   },
 
-  joinCustomer(customerId) {
-    if (!customerId) return;
-    this._ensureConnected();
-    const room = `customer:${customerId}`;
-    joinedRooms.add(room);
-    socket.emit('join:customer', { customerId });
-  },
-
   joinPartner(partnerId) {
     if (!partnerId) return;
     this._ensureConnected();
