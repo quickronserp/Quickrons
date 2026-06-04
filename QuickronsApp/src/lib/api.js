@@ -112,6 +112,9 @@ export const ordersApi = {
 export const partnerApi = {
   me: (token) =>
     request('/api/v1/partner/me', { token }),
+  // Update storefront branding: { tagline?, profileImageUrl?, bannerImageUrl?, galleryUrls? }
+  updateProfile: (body, token) =>
+    request('/api/v1/partner/me', { method: 'PATCH', body, token }),
   orders: (token, status) => {
     const qs = status ? `?status=${status}&limit=50` : '?limit=50';
     return request(`/api/v1/partner/orders${qs}`, { token });

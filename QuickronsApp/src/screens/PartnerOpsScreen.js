@@ -284,6 +284,13 @@ export default function PartnerOpsScreen({ navigation }) {
           </Text>
         </View>
         <Pressable
+          onPress={() => navigation.navigate('PartnerBranding')}
+          style={styles.menuBtn}
+        >
+          <Ionicons name="image" size={16} color={colors.brand} />
+          <Text style={styles.menuBtnTxt}>Store</Text>
+        </Pressable>
+        <Pressable
           onPress={() => navigation.navigate('PartnerMenu')}
           style={styles.menuBtn}
         >

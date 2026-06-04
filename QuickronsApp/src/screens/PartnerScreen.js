@@ -63,13 +63,13 @@ export default function PartnerScreen({ route, navigation }) {
   }
 
   // Normalise kitchen fields
-  const name     = kitchen.businessName  || kitchen.name     || '';
+  const name     = kitchen.brand         || kitchen.businessName || kitchen.name || '';
   const tagline  = kitchen.tagline       || kitchen.cuisineType || '';
-  const image    = kitchen.bannerImageUrl|| kitchen.profileImageUrl || null;
+  const image    = resolveImageUrl(kitchen.bannerImageUrl || kitchen.profileImageUrl || null);
   const rating   = kitchen.averageRating || 0;
   const etaMins  = kitchen.avgDeliveryMinutes || 30;
-  const location = kitchen.city          || kitchen.addressLine || '';
-  const segment  = kitchen.businessType  || kitchen.segment  || 'HOTEL';
+  const location = kitchen.city          || kitchen.zone?.nameEn || kitchen.addressLine || '';
+  const segment  = kitchen.businessType  || kitchen.category || kitchen.segment  || 'HOTEL';
   const badges   = kitchen.badges        || [];
 
   // Cart partner shape — needs a `name` field for CartScreen to display

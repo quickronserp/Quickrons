@@ -109,8 +109,12 @@ function validate(form) {
   if (paise > 1_000_000_00) return 'Price exceeds the maximum (₹1,00,00,000)';
   if (!form.category) return 'Pick a category';
   const imgRaw = (form.imageUrl || '').trim();
-  if (imgRaw && !/^https?:\/\/\S+$/i.test(imgRaw)) {
-    return 'Image URL must start with http:// or https://';
+  // Accept absolute http(s) URLs (Cloudinary) OR a server-relative /uploads/…
+  // path (local-disk storage). Previously this rejected the relative path the
+  // upload endpoint returns when Cloudinary isn't configured, silently gating
+  // the Save button after a successful upload.
+  if (imgRaw && !/^https?:\/\/\S+$/i.test(imgRaw) && !imgRaw.startsWith('/uploads/')) {
+    return 'Image URL must start with http:// or https:// (or be an uploaded image)';
   }
   if (String(form.dailyQuantityLimit).trim() !== '') {
     const q = Number(form.dailyQuantityLimit);

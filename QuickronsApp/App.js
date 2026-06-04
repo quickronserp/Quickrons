@@ -29,6 +29,7 @@ import RiderOpsScreen          from './src/screens/RiderOpsScreen';
 import AdminOpsScreen          from './src/screens/AdminOpsScreen';
 import LanguageSelectScreen    from './src/screens/LanguageSelectScreen';
 import PartnerMenuScreen       from './src/screens/PartnerMenuScreen';
+import PartnerBrandingScreen   from './src/screens/PartnerBrandingScreen';
 
 import { colors } from './src/theme';
 
@@ -126,6 +127,8 @@ function MainStack() {
       <Stack.Screen name="Profile"           component={ProfileScreen} />
       <Stack.Screen name="Rider"             component={RiderScreen} />
       <Stack.Screen name="PartnerOps"        component={PartnerOpsScreen} />
+      <Stack.Screen name="PartnerMenu"       component={PartnerMenuScreen} />
+      <Stack.Screen name="PartnerBranding"   component={PartnerBrandingScreen} />
       <Stack.Screen name="RiderOps"          component={RiderOpsScreen} />
       <Stack.Screen name="AdminOps"          component={AdminOpsScreen} />
     </Stack.Navigator>
@@ -136,8 +139,9 @@ function MainStack() {
 function PartnerStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="PartnerOps"  component={PartnerOpsScreen} />
-      <Stack.Screen name="PartnerMenu" component={PartnerMenuScreen} />
+      <Stack.Screen name="PartnerOps"      component={PartnerOpsScreen} />
+      <Stack.Screen name="PartnerMenu"     component={PartnerMenuScreen} />
+      <Stack.Screen name="PartnerBranding" component={PartnerBrandingScreen} />
     </Stack.Navigator>
   );
 }

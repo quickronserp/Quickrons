@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import PartnerCard from '../components/PartnerCard';
 import { ZONE } from '../data/mockData';
-import { kitchensApi } from '../lib/api';
+import { kitchensApi, API_BASE } from '../lib/api';
 import { colors, radii, space } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
@@ -43,21 +43,32 @@ const TYPE_TO_SEGMENT = {
 
 const FILTER_IDS = ['all', 'forra', 'homeMaker', 'hotel', 'caterer'];
 
+// Relative /uploads/… paths (local-disk storage) → absolute so <Image> can load.
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
+  return url;
+}
+
 // Normalise a backend kitchen into the shape PartnerCard + HomeScreen expect.
+// The live backend (kitchens route) returns: brand, category, zone{}, tagline,
+// profileImageUrl, bannerImageUrl. Older field names (businessName/businessType/
+// city) are kept as fallbacks so this is resilient to either shape.
 function normaliseKitchen(k) {
   return {
     id:       k.id,
-    name:     k.businessName,
-    nameMl:   k.businessNameMl || k.businessName,
-    segment:  TYPE_TO_SEGMENT[k.businessType] || 'hotel',
+    name:     k.brand || k.businessName || k.name || 'Kitchen',
+    nameMl:   k.businessNameMl || k.brand || k.businessName || '',
+    segment:  TYPE_TO_SEGMENT[k.category || k.businessType] || 'hotel',
     tagline:  k.tagline        || k.cuisineType || '',
-    taglineMl:k.taglineMl      || k.cuisineType || '',
+    taglineMl:k.taglineMl      || k.tagline || k.cuisineType || '',
     rating:   k.averageRating  || 0,
     reviews:  k.reviewCount    || 0,
     etaMins:  k.avgDeliveryMinutes || 30,
     badges:   k.badges         || [],
-    location: k.city           || k.addressLine || '',
-    image:    k.bannerImageUrl || k.profileImageUrl || null,
+    location: k.city           || k.zone?.nameEn || k.addressLine || '',
+    image:    resolveImageUrl(k.bannerImageUrl || k.profileImageUrl || null),
   };
 }
 
