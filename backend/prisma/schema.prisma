@@ -156,6 +156,7 @@ model User {
   partner        Partner?
   rider          Rider?
   notifications  Notification[]
+  ratings        Rating[]
 
   @@index([role])
   @@index([createdAt])
@@ -288,6 +289,9 @@ model Partner {
   bannerImageUrl   String?                            // wide cover / hero banner
   galleryUrls      String[]        @default([])       // kitchen gallery photos (ordered)
   tagline          String?                            // short storefront tagline
+  // ── Ratings aggregate (denormalised; recomputed on each new Rating) ─────────
+  averageRating    Float           @default(0)        // avg foodRating, 0 = no reviews
+  reviewCount      Int             @default(0)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
@@ -296,6 +300,7 @@ model Partner {
   menuItems MenuItem[]
   orders    Order[]
   wallet    Wallet?
+  ratings   Rating[]
 
   @@index([zoneCode, isActive])
   @@index([kycStatus])
@@ -318,6 +323,9 @@ model Rider {
   currentLat    Decimal?    @db.Decimal(10, 7)
   currentLng    Decimal?    @db.Decimal(10, 7)
   lastPingAt    DateTime?
+  // ── Ratings aggregate (denormalised; recomputed on each new Rating) ─────────
+  averageRating Float       @default(0)               // avg deliveryRating, 0 = no reviews
+  reviewCount   Int         @default(0)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -325,6 +333,7 @@ model Rider {
   zone   Zone    @relation(fields: [zoneCode], references: [code], onDelete: Restrict)
   orders Order[]
   wallet Wallet?
+  ratings Rating[]
 
   @@index([zoneCode, isOnline, isActive])
   @@index([kycStatus])
@@ -432,6 +441,7 @@ model Order {
   events          OrderEvent[]
   walletTxns      WalletTransaction[]
   notifications   Notification[]
+  rating          Rating?
 
   @@index([customerPhone, createdAt])
   @@index([customerId, createdAt])
@@ -474,6 +484,34 @@ model OrderEvent {
 
   @@index([orderId, createdAt])
   @@index([toStatus, createdAt])
+}
+
+// ─── Rating (customer review of a delivered order) ────────────────────────────
+//
+// One rating per order (orderId @unique). Captures food (kitchen), delivery
+// (rider) and an overall score, plus optional free text. Partner.averageRating
+// and Rider.averageRating are recomputed from these rows on each insert.
+
+model Rating {
+  id             String   @id @default(cuid())
+  orderId        String   @unique
+  customerId     String?
+  partnerId      String
+  riderId        String?
+  foodRating     Int                                  // 1-5 (kitchen / food quality)
+  deliveryRating Int                                  // 1-5 (rider / delivery)
+  overallRating  Int                                  // 1-5 (overall experience)
+  reviewText     String?
+  createdAt      DateTime @default(now())
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer User?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  partner  Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  rider    Rider?   @relation(fields: [riderId], references: [id], onDelete: SetNull)
+
+  @@index([partnerId, createdAt])
+  @@index([riderId, createdAt])
+  @@index([customerId, createdAt])
 }
 
 // ─── Wallet (append-only double-entry ledger, BigInt paise) ───────────────────

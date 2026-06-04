@@ -659,4 +659,48 @@ router.get('/orders/stuck', asyncH(async (_req, res) => {
   });
 }));
 
+// ─── GET /ratings — admin review feed (read-only, no moderation) ─────────────
+//
+// Query params:
+//   partnerId — filter to one kitchen (optional)
+//   riderId   — filter to one rider (optional)
+//   page / limit
+//
+// Newest first. Includes order number + partner/rider/customer labels so the
+// console can show context without extra lookups.
+
+router.get('/ratings', asyncH(async (req, res) => {
+  const { partnerId, riderId } = req.query;
+  const { page, limit, skip } = parsePagination(req.query);
+
+  const where = {
+    ...(partnerId && { partnerId: String(partnerId) }),
+    ...(riderId   && { riderId:   String(riderId) }),
+  };
+
+  const [total, ratings] = await prisma.$transaction([
+    prisma.rating.count({ where }),
+    prisma.rating.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      select: {
+        id:             true,
+        foodRating:     true,
+        deliveryRating: true,
+        overallRating:  true,
+        reviewText:     true,
+        createdAt:      true,
+        order:    { select: { orderNumber: true } },
+        partner:  { select: { id: true, brand: true } },
+        rider:    { select: { id: true, fullName: true } },
+        customer: { select: { name: true, phone: true } },
+      },
+    }),
+  ]);
+
+  res.json({ ratings, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+}));
+
 module.exports = router;

@@ -48,6 +48,17 @@ const ORDER_INCLUDE = {
       createdAt:  true,
     },
   },
+  // Present once the customer has rated — lets the app avoid re-prompting.
+  rating: {
+    select: {
+      id:             true,
+      foodRating:     true,
+      deliveryRating: true,
+      overallRating:  true,
+      reviewText:     true,
+      createdAt:      true,
+    },
+  },
 };
 
 // ─── POST / — place order ─────────────────────────────────────────────────────
@@ -372,6 +383,130 @@ router.post('/:id/cancel', verifyToken, asyncH(async (req, res) => {
 
   emitOrderCancelled(updated);
   res.json({ order: updated });
+}));
+
+// ─── POST /:id/rating — customer rates a delivered order ─────────────────────
+//
+// Body: { foodRating, deliveryRating, overallRating?, reviewText? }   (1-5 ints)
+//   overallRating defaults to round((food + delivery) / 2) when omitted.
+//
+// Rules:
+//   • order must be DELIVERED
+//   • caller must own the order (customerId === user, or phone match for guests)
+//   • one rating per order (orderId is @unique → P2002 → 409)
+//
+// On success: creates the Rating and recomputes the denormalised aggregates —
+// Partner.averageRating (avg foodRating) and Rider.averageRating (avg
+// deliveryRating) + reviewCount — atomically in one interactive transaction.
+
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+function clampRating(v, field) {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n < 1 || n > 5) {
+    throw BadRequest(`${field} must be an integer from 1 to 5`);
+  }
+  return n;
+}
+
+router.post('/:id/rating', verifyToken, asyncH(async (req, res) => {
+  const b = req.body || {};
+  const foodRating     = clampRating(b.foodRating,     'foodRating');
+  const deliveryRating = clampRating(b.deliveryRating, 'deliveryRating');
+  const overallRating  = b.overallRating === undefined || b.overallRating === null
+    ? Math.round((foodRating + deliveryRating) / 2)
+    : clampRating(b.overallRating, 'overallRating');
+
+  let reviewText = null;
+  if (b.reviewText !== undefined && b.reviewText !== null && b.reviewText !== '') {
+    if (typeof b.reviewText !== 'string') throw BadRequest('reviewText must be a string');
+    reviewText = b.reviewText.trim().slice(0, 1000) || null;
+  }
+
+  const order = await prisma.order.findFirst({
+    where:  { OR: [{ id: req.params.id }, { orderNumber: req.params.id }] },
+    select: {
+      id: true, status: true, customerId: true, customerPhone: true,
+      partnerId: true, riderId: true,
+    },
+  });
+  if (!order) throw NotFound('Order not found');
+
+  // Ownership — customerId match, or phone match for guest-placed orders.
+  const ownsById    = order.customerId && order.customerId === req.user.id;
+  const ownsByPhone = !order.customerId && order.customerPhone === req.user.phone;
+  if (!ownsById && !ownsByPhone) {
+    throw NotFound('Order not found'); // don't reveal existence
+  }
+
+  if (order.status !== 'DELIVERED') {
+    throw BadRequest('Only delivered orders can be rated');
+  }
+
+  // Friendly pre-check (the @unique index is the real guard against races).
+  const existing = await prisma.rating.findUnique({
+    where:  { orderId: order.id },
+    select: { id: true },
+  });
+  if (existing) throw BadRequest('This order has already been rated');
+
+  let created;
+  try {
+    created = await prisma.$transaction(async (tx) => {
+      const rating = await tx.rating.create({
+        data: {
+          orderId:        order.id,
+          customerId:     order.customerId,
+          partnerId:      order.partnerId,
+          riderId:        order.riderId,
+          foodRating, deliveryRating, overallRating, reviewText,
+        },
+        select: {
+          id: true, foodRating: true, deliveryRating: true,
+          overallRating: true, reviewText: true, createdAt: true,
+        },
+      });
+
+      // Partner aggregate ← avg foodRating.
+      const pAgg = await tx.rating.aggregate({
+        where: { partnerId: order.partnerId },
+        _avg:  { foodRating: true },
+        _count: { _all: true },
+      });
+      await tx.partner.update({
+        where: { id: order.partnerId },
+        data:  {
+          averageRating: round2(pAgg._avg.foodRating),
+          reviewCount:   pAgg._count._all,
+        },
+        select: { id: true },
+      });
+
+      // Rider aggregate ← avg deliveryRating (only when a rider delivered).
+      if (order.riderId) {
+        const rAgg = await tx.rating.aggregate({
+          where: { riderId: order.riderId },
+          _avg:  { deliveryRating: true },
+          _count: { _all: true },
+        });
+        await tx.rider.update({
+          where: { id: order.riderId },
+          data:  {
+            averageRating: round2(rAgg._avg.deliveryRating),
+            reviewCount:   rAgg._count._all,
+          },
+          select: { id: true },
+        });
+      }
+
+      return rating;
+    }, { timeout: 15000 });
+  } catch (err) {
+    if (err.code === 'P2002') throw BadRequest('This order has already been rated');
+    throw err;
+  }
+
+  res.status(201).json({ rating: created });
 }));
 
 // ─── GET / — admin: list orders by phone / status ────────────────────────────

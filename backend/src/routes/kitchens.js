@@ -57,6 +57,9 @@ const KITCHEN_PUBLIC_SELECT = {
   bannerImageUrl:  true,
   galleryUrls:     true,
   tagline:         true,
+  // Ratings aggregate (customer cards + detail page).
+  averageRating:   true,
+  reviewCount:     true,
   zone: {
     select: { code: true, nameEn: true, nameMl: true, district: true },
   },
