@@ -147,23 +147,94 @@ async function fetchFullOrder(orderId) {
 // Returns the partner profile that loadPartner already resolved.
 // Used by the kitchen app to get the partner ID for socket room joins.
 
+const PARTNER_PROFILE_SELECT = {
+  id:          true,
+  brand:       true,
+  ownerName:   true,
+  category:    true,
+  zoneCode:    true,
+  kycStatus:   true,
+  isActive:    true,
+  commissionBps: true,
+  // Storefront branding (Phase 1 image system).
+  profileImageUrl: true,
+  bannerImageUrl:  true,
+  galleryUrls:     true,
+  tagline:         true,
+};
+
 router.get('/me', asyncH(async (req, res) => {
   // req.partner is already populated by the loadPartner middleware above.
-  // Augment with ownerName and category for a richer profile card.
+  // Augment with ownerName, category and branding for a richer profile card.
   const detail = await prisma.partner.findUnique({
     where:  { id: req.partner.id },
-    select: {
-      id:          true,
-      brand:       true,
-      ownerName:   true,
-      category:    true,
-      zoneCode:    true,
-      kycStatus:   true,
-      isActive:    true,
-      commissionBps: true,
-    },
+    select: PARTNER_PROFILE_SELECT,
   });
   res.json({ partner: detail ?? req.partner });
+}));
+
+// ─── PATCH /me — update storefront branding ──────────────────────────────────
+//
+// Body (all optional): { tagline?, profileImageUrl?, bannerImageUrl?, galleryUrls? }
+//
+// Image URL fields accept either an absolute https URL (Cloudinary) or a
+// server-relative /uploads/... path (local-disk storage). Send null/'' to clear
+// a single image; send a string[] (max 12) to replace the gallery wholesale.
+//
+// Upload flow: client POSTs the file to /partner/menu/upload to get a { url },
+// then PATCHes that url into the relevant field here. Same pattern as dishes.
+
+const GALLERY_MAX = 12;
+
+// Accept absolute http(s) or a server-relative "/uploads/..." path.
+function cleanImageRef(v, field) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v !== 'string') throw BadRequest(`${field} must be a string URL`);
+  const s = v.trim();
+  if (s.length > 500) throw BadRequest(`${field} is too long`);
+  if (!/^https?:\/\/\S+$/i.test(s) && !s.startsWith('/uploads/')) {
+    throw BadRequest(`${field} must be an http(s) URL or an /uploads/ path`);
+  }
+  return s;
+}
+
+router.patch('/me', asyncH(async (req, res) => {
+  const b = req.body || {};
+  const data = {};
+
+  if (b.tagline !== undefined) {
+    if (b.tagline === null || b.tagline === '') {
+      data.tagline = null;
+    } else if (typeof b.tagline === 'string') {
+      const t = b.tagline.trim();
+      if (t.length > 140) throw BadRequest('tagline must be 140 characters or fewer');
+      data.tagline = t || null;
+    } else {
+      throw BadRequest('tagline must be a string');
+    }
+  }
+
+  if (b.profileImageUrl !== undefined) data.profileImageUrl = cleanImageRef(b.profileImageUrl, 'profileImageUrl');
+  if (b.bannerImageUrl  !== undefined) data.bannerImageUrl  = cleanImageRef(b.bannerImageUrl,  'bannerImageUrl');
+
+  if (b.galleryUrls !== undefined) {
+    if (!Array.isArray(b.galleryUrls)) throw BadRequest('galleryUrls must be an array of URLs');
+    if (b.galleryUrls.length > GALLERY_MAX) throw BadRequest(`galleryUrls can hold at most ${GALLERY_MAX} images`);
+    data.galleryUrls = b.galleryUrls.map((u, i) => {
+      const cleaned = cleanImageRef(u, `galleryUrls[${i}]`);
+      if (!cleaned) throw BadRequest(`galleryUrls[${i}] cannot be empty`);
+      return cleaned;
+    });
+  }
+
+  if (Object.keys(data).length === 0) throw BadRequest('Provide at least one field to update');
+
+  const partner = await prisma.partner.update({
+    where:  { id: req.partner.id },
+    data,
+    select: PARTNER_PROFILE_SELECT,
+  });
+  res.json({ partner });
 }));
 
 // ─── GET /orders — list incoming orders ──────────────────────────────────────

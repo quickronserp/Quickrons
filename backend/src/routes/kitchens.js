@@ -52,6 +52,11 @@ const KITCHEN_PUBLIC_SELECT = {
   isActive:  true,
   zoneCode:  true,
   createdAt: true,
+  // Storefront branding (Phase 1 image system) — safe to expose publicly.
+  profileImageUrl: true,
+  bannerImageUrl:  true,
+  galleryUrls:     true,
+  tagline:         true,
   zone: {
     select: { code: true, nameEn: true, nameMl: true, district: true },
   },

@@ -282,6 +282,12 @@ model Partner {
   bankAccountLast4 String?
   ifscCode         String?
   payoutNotes      String?
+  // ── Storefront branding (Phase 1 image system) ──────────────────────────────
+  // All additive + nullable / defaulted — safe to backfill on existing rows.
+  profileImageUrl  String?                            // square logo / profile photo
+  bannerImageUrl   String?                            // wide cover / hero banner
+  galleryUrls      String[]        @default([])       // kitchen gallery photos (ordered)
+  tagline          String?                            // short storefront tagline
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
