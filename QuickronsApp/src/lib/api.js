@@ -105,6 +105,11 @@ export const ordersApi = {
     return request(`/api/v1/customers/me/orders${qs ? '?' + qs : ''}`, { token });
   },
 
+  // Submit a rating for a delivered order.
+  //   body: { foodRating, deliveryRating, overallRating?, reviewText? }
+  submitRating: (id, body, token) =>
+    request(`/api/v1/orders/${id}/rating`, { method: 'POST', body, token }),
+
 };
 
 // ─── Partner Ops ──────────────────────────────────────────────────────────────
@@ -226,4 +231,6 @@ export const adminApi = {
     request(`/api/v1/admin/orders/${id}/cancel`, { method: 'POST', body: { reason }, token }),
   stuckOrders: (token) =>
     request('/api/v1/admin/orders/stuck', { token }),
+  ratings: (token) =>
+    request('/api/v1/admin/ratings?limit=50', { token }),
 };

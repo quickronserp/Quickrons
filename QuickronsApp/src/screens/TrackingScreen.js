@@ -9,7 +9,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ordersApi } from '../lib/api';
 import { useAuth } from '../state/AuthContext';
 import socketClient from '../lib/socket';
-import * as storage from '../lib/storage';
 import { colors, radii, space } from '../theme';
 
 // ── Status → stage index ───────────────────────────────────────────────────────
