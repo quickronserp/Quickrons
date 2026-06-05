@@ -5,6 +5,7 @@
 //   GET /api/v1/admin/wallets
 //   GET /api/v1/admin/partners
 //   GET /api/v1/admin/riders
+//   GET /api/v1/admin/ratings
 //   POST /api/v1/admin/orders/:id/cancel
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -30,7 +31,14 @@ const STATUS_COLOR = {
   FAILED:           colors.danger,
 };
 
-const TABS = ['orders', 'analytics', 'riders', 'partners'];
+const TABS = ['orders', 'analytics', 'riders', 'partners', 'reviews'];
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 function paise(p) {
   const n = Number(p);
@@ -46,6 +54,7 @@ export default function AdminOpsScreen({ navigation }) {
   const [wallets, setWallets]     = useState([]);
   const [partners, setPartners]   = useState([]);
   const [riders, setRiders]       = useState([]);
+  const [ratings, setRatings]     = useState([]);
   const [stuck, setStuck]         = useState(null);   // { totalCount, buckets, thresholds }
   const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,13 +67,14 @@ export default function AdminOpsScreen({ navigation }) {
     if (!quiet) setLoading(true);
     if (!quiet) setError(null);
     try {
-      const [ordRes, analRes, walRes, partRes, ridRes, stuckRes] = await Promise.allSettled([
+      const [ordRes, analRes, walRes, partRes, ridRes, stuckRes, ratRes] = await Promise.allSettled([
         adminApi.orders(accessToken, statusFilter || undefined),
         adminApi.analytics(accessToken),
         adminApi.wallets(accessToken),
         adminApi.partners(accessToken),
         adminApi.riders(accessToken),
         adminApi.stuckOrders(accessToken),
+        adminApi.ratings(accessToken),
       ]);
       if (ordRes.status === 'fulfilled')   setOrders(ordRes.value.orders || []);
       if (analRes.status === 'fulfilled')  setAnalytics(analRes.value);
@@ -72,6 +82,7 @@ export default function AdminOpsScreen({ navigation }) {
       if (partRes.status === 'fulfilled')  setPartners(partRes.value.partners || []);
       if (ridRes.status === 'fulfilled')   setRiders(ridRes.value.riders || []);
       if (stuckRes.status === 'fulfilled') setStuck(stuckRes.value);
+      if (ratRes.status === 'fulfilled')   setRatings(ratRes.value.ratings || []);
 
       // Surface the most critical error
       const firstFail = [ordRes, analRes].find(r => r.status === 'rejected');
@@ -310,11 +321,48 @@ export default function AdminOpsScreen({ navigation }) {
     );
   }
 
+  function renderReviews() {
+    return (
+      <ScrollView contentContainerStyle={{ padding: space.md }}>
+        {ratings.length === 0 ? (
+          <EmptyState label="No reviews yet" />
+        ) : ratings.map(r => (
+          <View key={r.id} style={styles.card}>
+            <View style={styles.cardHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.orderNum}>{r.partner?.brand || 'Kitchen'}</Text>
+                <Text style={styles.subText}>
+                  #{r.order?.orderNumber || '—'} · {r.customer?.name || r.customer?.phone || 'Customer'}
+                </Text>
+              </View>
+              <Text style={styles.reviewDate}>{formatDate(r.createdAt)}</Text>
+            </View>
+
+            <View style={styles.reviewRatings}>
+              <RatingChip icon="restaurant" label="Food" value={r.foodRating} />
+              <RatingChip icon="bicycle" label="Delivery" value={r.deliveryRating} />
+            </View>
+
+            <Text style={styles.subText}>
+              <Ionicons name="person" size={12} color={colors.inkMuted} />{' '}
+              Rider: {r.rider?.fullName || 'Unassigned'}
+            </Text>
+
+            {r.reviewText ? (
+              <Text style={styles.reviewText}>“{r.reviewText}”</Text>
+            ) : null}
+          </View>
+        ))}
+      </ScrollView>
+    );
+  }
+
   const tabContent = {
     orders:    renderOrders,
     analytics: renderAnalytics,
     riders:    renderRiders,
     partners:  renderPartners,
+    reviews:   renderReviews,
   };
 
   return (
@@ -382,6 +430,17 @@ function StatCard({ label, value, color, wide }) {
     <View style={[styles.statCard, wide && styles.statCardWide]}>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function RatingChip({ icon, label, value }) {
+  return (
+    <View style={styles.ratingChip}>
+      <Ionicons name={icon} size={12} color={colors.inkSoft} />
+      <Text style={styles.ratingChipLabel}>{label}</Text>
+      <Ionicons name="star" size={12} color={colors.accent} />
+      <Text style={styles.ratingChipValue}>{value ?? '—'}</Text>
     </View>
   );
 }
@@ -490,6 +549,19 @@ const styles = StyleSheet.create({
   dotLabel: { fontSize: 11, color: colors.inkSoft, fontWeight: '600' },
   emptyBox: { alignItems: 'center', paddingVertical: space.xl, gap: 8 },
   emptyTxt: { fontSize: 14, fontWeight: '700', color: colors.inkSoft },
+
+  reviewDate: { fontSize: 11, color: colors.inkMuted, fontWeight: '600' },
+  reviewRatings: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  ratingChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: colors.bgAlt, paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 999,
+  },
+  ratingChipLabel: { fontSize: 11, color: colors.inkSoft, fontWeight: '700' },
+  ratingChipValue: { fontSize: 11, color: colors.ink, fontWeight: '800' },
+  reviewText: {
+    fontSize: 13, color: colors.ink, marginTop: 6, lineHeight: 18, fontStyle: 'italic',
+  },
 
   stuckAlert: {
     backgroundColor: colors.danger + '10', borderRadius: radii.md, padding: space.md,
