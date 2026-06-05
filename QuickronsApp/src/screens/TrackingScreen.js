@@ -46,41 +46,81 @@ function withTimeout(promise, ms) {
   return promise.finally(() => clearTimeout(timer));
 }
 
-// ── Rating storage ─────────────────────────────────────────────────────────────
+// ── StarRow — tappable 1-5 star selector ─────────────────────────────────────
 
-async function loadRating(orderId) {
-  try {
-    const raw = await storage.getItem(`rating:${orderId}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-async function saveRating(orderId, stars, note) {
-  try {
-    await storage.setItem(`rating:${orderId}`, JSON.stringify({ stars, note, savedAt: Date.now() }));
-  } catch {}
+function StarRow({ label, value, onChange }) {
+  return (
+    <View style={ratingStyles.starGroup}>
+      <Text style={ratingStyles.starLabel}>{label}</Text>
+      <View style={ratingStyles.starsRow}>
+        {[1, 2, 3, 4, 5].map(n => (
+          <Pressable key={n} onPress={() => onChange(n)} hitSlop={6}>
+            <Ionicons
+              name={n <= value ? 'star' : 'star-outline'}
+              size={34}
+              color={n <= value ? colors.accent : colors.inkMuted}
+            />
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 // ── RatingModal ────────────────────────────────────────────────────────────────
+//
+// Posts to the backend (ordersApi.submitRating). The order's existing rating
+// (order.rating) is passed in; when present the modal opens straight into the
+// thank-you state so a delivered order can never be rated twice.
 
-function RatingModal({ orderId, visible, onClose }) {
-  const [stars, setStars] = useState(0);
-  const [note,  setNote]  = useState('');
-  const [saved, setSaved] = useState(false);
+function RatingModal({ orderId, token, existingRating, visible, onClose, onSubmitted }) {
+  const alreadyRated = !!existingRating;
 
-  // Load existing rating on open
+  const [food,     setFood]     = useState(0);
+  const [delivery, setDelivery] = useState(0);
+  const [note,     setNote]     = useState('');
+  const [saved,    setSaved]    = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Reset / seed local state each time the sheet opens.
   useEffect(() => {
     if (!visible) return;
-    loadRating(orderId).then(r => {
-      if (r) { setStars(r.stars); setNote(r.note || ''); setSaved(true); }
-      else   { setStars(0); setNote(''); setSaved(false); }
-    });
-  }, [visible, orderId]);
+    if (alreadyRated) {
+      setFood(existingRating.foodRating || 0);
+      setDelivery(existingRating.deliveryRating || 0);
+      setNote(existingRating.reviewText || '');
+      setSaved(true);
+    } else {
+      setFood(0); setDelivery(0); setNote(''); setSaved(false);
+    }
+    setSubmitting(false);
+  }, [visible, alreadyRated, existingRating]);
 
   async function submit() {
-    if (stars === 0) { Alert.alert('Rate your experience', 'Please tap a star to continue.'); return; }
-    await saveRating(orderId, stars, note.trim());
-    setSaved(true);
+    if (food === 0 || delivery === 0) {
+      Alert.alert('Rate your experience', 'Please rate both the food and the delivery.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await ordersApi.submitRating(
+        orderId,
+        { foodRating: food, deliveryRating: delivery, reviewText: note.trim() || undefined },
+        token,
+      );
+      setSaved(true);
+      onSubmitted?.();
+    } catch (e) {
+      // 409 = already rated (raced another submit) — treat as success.
+      if (e?.status === 409) {
+        setSaved(true);
+        onSubmitted?.();
+      } else {
+        Alert.alert('Could not submit', e?.message || 'Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -93,7 +133,11 @@ function RatingModal({ orderId, visible, onClose }) {
             <>
               <Ionicons name="checkmark-circle" size={48} color={colors.success} style={{ alignSelf: 'center', marginBottom: 8 }} />
               <Text style={ratingStyles.title}>Thank you!</Text>
-              <Text style={ratingStyles.sub}>Your feedback helps us improve Quickrons.</Text>
+              <Text style={ratingStyles.sub}>
+                {alreadyRated
+                  ? 'You already rated this order.'
+                  : 'Your feedback helps us improve Quickrons.'}
+              </Text>
               <Pressable onPress={onClose} style={ratingStyles.doneBtn}>
                 <Text style={ratingStyles.doneBtnTxt}>Close</Text>
               </Pressable>
@@ -101,19 +145,10 @@ function RatingModal({ orderId, visible, onClose }) {
           ) : (
             <>
               <Text style={ratingStyles.title}>How was your order?</Text>
-              <Text style={ratingStyles.sub}>Tap a star to rate your experience.</Text>
+              <Text style={ratingStyles.sub}>Tap a star to rate each part.</Text>
 
-              <View style={ratingStyles.starsRow}>
-                {[1, 2, 3, 4, 5].map(n => (
-                  <Pressable key={n} onPress={() => setStars(n)} hitSlop={8}>
-                    <Ionicons
-                      name={n <= stars ? 'star' : 'star-outline'}
-                      size={40}
-                      color={n <= stars ? colors.accent : colors.inkMuted}
-                    />
-                  </Pressable>
-                ))}
-              </View>
+              <StarRow label="Food" value={food} onChange={setFood} />
+              <StarRow label="Delivery" value={delivery} onChange={setDelivery} />
 
               <TextInput
                 style={ratingStyles.noteInput}
@@ -122,11 +157,17 @@ function RatingModal({ orderId, visible, onClose }) {
                 value={note}
                 onChangeText={setNote}
                 multiline
-                maxLength={200}
+                maxLength={500}
               />
 
-              <Pressable onPress={submit} style={ratingStyles.submitBtn}>
-                <Text style={ratingStyles.submitBtnTxt}>Submit</Text>
+              <Pressable
+                onPress={submit}
+                disabled={submitting}
+                style={[ratingStyles.submitBtn, submitting && { opacity: 0.6 }]}
+              >
+                {submitting
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={ratingStyles.submitBtnTxt}>Submit</Text>}
               </Pressable>
 
               <Pressable onPress={onClose} style={ratingStyles.skipBtn}>
@@ -382,10 +423,19 @@ export default function TrackingScreen({ route, navigation }) {
         {/* Delivered — rate + done */}
         {isDelivered && (
           <View style={{ gap: 10, marginTop: space.xl }}>
-            <Pressable onPress={() => setShowRating(true)} style={styles.rateBtn}>
-              <Ionicons name="star" size={18} color={colors.accent} />
-              <Text style={styles.rateBtnTxt}>Rate your experience</Text>
-            </Pressable>
+            {order.rating ? (
+              <Pressable onPress={() => setShowRating(true)} style={styles.ratedBtn}>
+                <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                <Text style={styles.ratedBtnTxt}>
+                  You rated this order {'★'.repeat(order.rating.overallRating || 0)}
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setShowRating(true)} style={styles.rateBtn}>
+                <Ionicons name="star" size={18} color={colors.accent} />
+                <Text style={styles.rateBtnTxt}>Rate your experience</Text>
+              </Pressable>
+            )}
             <Pressable onPress={() => navigation.navigate('HomeTab')} style={styles.doneBtn}>
               <Text style={styles.doneTxt}>Back to home</Text>
             </Pressable>
@@ -397,8 +447,11 @@ export default function TrackingScreen({ route, navigation }) {
       {orderId && (
         <RatingModal
           orderId={orderId}
+          token={accessToken}
+          existingRating={order.rating || null}
           visible={showRating}
           onClose={() => setShowRating(false)}
+          onSubmitted={() => invalidate.current()}
         />
       )}
     </SafeAreaView>
@@ -470,6 +523,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.accent + '40',
   },
   rateBtnTxt: { color: colors.accent, fontWeight: '800', fontSize: 15 },
+  ratedBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.success + '14', borderRadius: radii.md, padding: 14,
+    borderWidth: 1, borderColor: colors.success + '40',
+  },
+  ratedBtnTxt: { color: colors.success, fontWeight: '800', fontSize: 15 },
   doneBtn: {
     backgroundColor: colors.bgAlt, borderRadius: radii.md, padding: 14,
     alignItems: 'center', borderWidth: 1, borderColor: colors.border,
@@ -492,8 +551,10 @@ const ratingStyles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: '800', color: colors.ink, textAlign: 'center', marginBottom: 4 },
   sub:   { fontSize: 14, color: colors.inkSoft, textAlign: 'center', marginBottom: space.lg },
+  starGroup: { marginBottom: space.md },
+  starLabel: { fontSize: 13, fontWeight: '700', color: colors.inkSoft, marginBottom: 6, textAlign: 'center' },
   starsRow: {
-    flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: space.lg,
+    flexDirection: 'row', justifyContent: 'center', gap: 10,
   },
   noteInput: {
     borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.md,
