@@ -67,6 +67,7 @@ export default function PartnerScreen({ route, navigation }) {
   const tagline  = kitchen.tagline       || kitchen.cuisineType || '';
   const image    = resolveImageUrl(kitchen.bannerImageUrl || kitchen.profileImageUrl || null);
   const rating   = kitchen.averageRating || 0;
+  const reviews  = kitchen.reviewCount   || 0;
   const etaMins  = kitchen.avgDeliveryMinutes || 30;
   const location = kitchen.city          || kitchen.zone?.nameEn || kitchen.addressLine || '';
   const segment  = kitchen.businessType  || kitchen.category || kitchen.segment  || 'HOTEL';
@@ -129,7 +130,9 @@ export default function PartnerScreen({ route, navigation }) {
             <View style={styles.metaCell}>
               <Ionicons name="star" size={14} color={colors.accent} />
               <Text style={styles.metaTxt}>{rating > 0 ? rating.toFixed(1) : '—'}</Text>
-              <Text style={styles.metaSub}>rating</Text>
+              <Text style={styles.metaSub}>
+                {reviews > 0 ? `${reviews} review${reviews === 1 ? '' : 's'}` : 'no reviews'}
+              </Text>
             </View>
             <View style={styles.metaCell}>
               <Ionicons name="time-outline" size={14} color={colors.inkSoft} />

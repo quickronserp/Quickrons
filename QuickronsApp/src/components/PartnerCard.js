@@ -6,6 +6,7 @@ import { colors, radii, space } from '../theme';
 
 export default function PartnerCard({ partner, onPress }) {
   const rating   = typeof partner.rating === 'number' ? partner.rating : null;
+  const reviews  = partner.reviews ?? partner.reviewCount ?? 0;
   const etaMins  = partner.etaMins  || partner.avgDeliveryMinutes || null;
   const location = partner.location || partner.city || '';
   const locLabel = location ? location.split(',')[0] : null;
@@ -31,7 +32,10 @@ export default function PartnerCard({ partner, onPress }) {
           {rating != null && rating > 0 && (
             <View style={styles.ratingPill}>
               <Ionicons name="star" size={11} color={colors.accent} />
-              <Text style={styles.ratingTxt}>{rating.toFixed(1)}</Text>
+              <Text style={styles.ratingTxt}>
+                {rating.toFixed(1)}
+                {reviews > 0 ? ` (${reviews})` : ''}
+              </Text>
             </View>
           )}
         </View>
