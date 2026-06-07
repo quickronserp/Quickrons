@@ -90,8 +90,15 @@ const RIDER_ORDER_INCLUDE = {
 };
 
 // Fetch full order after a transaction commits.
-function fetchFullOrder(orderId) {
-  return prisma.order.findUnique({ where: { id: orderId }, include: RIDER_ORDER_INCLUDE });
+//
+// SECURITY: RIDER_ORDER_INCLUDE uses `include`, so Prisma returns every Order
+// scalar — including `deliveryOtp`. The rider must NEVER receive the OTP (they
+// only submit it at the door for the backend to validate). Strip it here so no
+// rider-facing response (accept / picked-up / delivered) can ever leak it.
+async function fetchFullOrder(orderId) {
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: RIDER_ORDER_INCLUDE });
+  if (order) delete order.deliveryOtp;
+  return order;
 }
 
 // Assert the FSM transition is valid. Throws 400 with a clear message if not.
@@ -615,7 +622,7 @@ router.get('/me/orders', asyncH(async (req, res) => {
         addrLat:         true,   // for map navigation
         addrLng:         true,
         addrNotes:       true,
-        deliveryOtp:     true,   // rider enters, customer reads
+        // deliveryOtp intentionally NOT selected — riders submit the OTP, never read it.
         pickedUpAt:      true,
         deliveredAt:     true,
         createdAt:       true,
