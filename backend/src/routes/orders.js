@@ -81,6 +81,29 @@ const ORDER_INCLUDE = {
 
 const VALID_PAYMENT_METHODS = ['COD', 'RAZORPAY', 'WALLET'];
 
+// ─── Fee schedule — SERVER-AUTHORITATIVE (paise) ─────────────────────────────
+//
+// The client computes the same numbers for display only (CartContext); the
+// values persisted here are the single source of truth that partner, rider,
+// admin and the customer's COD amount all read back from the Order row.
+//
+//   delivery  ₹39  flat
+//   packaging ₹9   flat   (shown as "Platform fee" in the cart UI)
+//   tax       5%   of subtotal (GST)
+//
+// total = subtotal + delivery + packaging + tax
+const DELIVERY_FEE_PAISE  = 3900;
+const PACKAGING_FEE_PAISE = 900;
+const GST_RATE            = 0.05;
+
+function computeFees(subtotalPaise) {
+  const deliveryFeePaise  = DELIVERY_FEE_PAISE;
+  const packagingFeePaise = PACKAGING_FEE_PAISE;
+  const taxPaise          = Math.round(subtotalPaise * GST_RATE);
+  const totalPaise        = subtotalPaise + deliveryFeePaise + packagingFeePaise + taxPaise;
+  return { deliveryFeePaise, packagingFeePaise, taxPaise, totalPaise };
+}
+
 router.post('/', verifyToken, asyncH(async (req, res) => {
   const { items, addressId, paymentMethod = 'COD' } = req.body || {};
 
@@ -203,8 +226,8 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
     });
   }
 
-  // MVP: no delivery fee / tax / discount. total = subtotal.
-  const totalPaise = subtotalPaise;
+  // Server-authoritative fee + total computation (never trust client totals).
+  const { deliveryFeePaise, packagingFeePaise, taxPaise, totalPaise } = computeFees(subtotalPaise);
 
   // ── 8. Generate order number outside transaction (cheap read-only retry) ──
   const orderNumber = await generateOrderNumber();
@@ -257,11 +280,11 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
         addrLat:      address.lat      || null,
         addrLng:      address.lng      || null,
         addrNotes:    address.notes    || null,
-        // Money — MVP: no fees / tax.
+        // Money — server-computed fees (see computeFees).
         subtotalPaise,
-        deliveryFeePaise:  0,
-        packagingFeePaise: 0,
-        taxPaise:          0,
+        deliveryFeePaise,
+        packagingFeePaise,
+        taxPaise,
         discountPaise:     0,
         totalPaise,
         itemCount,
