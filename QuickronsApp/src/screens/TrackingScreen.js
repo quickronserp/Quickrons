@@ -211,7 +211,10 @@ export default function TrackingScreen({ route, navigation }) {
   const stage       = STATUS_TO_STAGE[status] ?? 0;
   const orderNumber = order?.orderNumber || '—';
   const rider       = order?.rider || null;
-  const riderPhone  = rider?.user?.phone || null;
+  // Privacy-first: the rider's raw number is never in the payload. We resolve a
+  // dialable target on demand via the contact endpoint when the customer taps Call.
+  const canCallRider = !!rider && ['READY_FOR_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status);
+  const [calling, setCalling] = useState(false);
 
   const isDelivered = status === 'DELIVERED';
   const isFailed    = status === 'FAILED';
@@ -242,12 +245,24 @@ export default function TrackingScreen({ route, navigation }) {
 
   // ── Call rider ─────────────────────────────────────────────────────────────
 
-  const callRider = useCallback(() => {
-    if (!riderPhone) return;
-    Linking.openURL(`tel:${riderPhone}`).catch(() =>
-      Alert.alert('Cannot call', 'Your device cannot make calls right now.')
-    );
-  }, [riderPhone]);
+  const callRider = useCallback(async () => {
+    if (calling) return;
+    setCalling(true);
+    try {
+      const { contact } = await ordersApi.contact(orderId, accessToken);
+      if (!contact?.dial) {
+        Alert.alert('Cannot call', 'No contact number is available right now.');
+        return;
+      }
+      Linking.openURL(`tel:${contact.dial}`).catch(() =>
+        Alert.alert('Cannot call', 'Your device cannot make calls right now.')
+      );
+    } catch (e) {
+      Alert.alert('Cannot call', e?.message || 'Could not connect the call.');
+    } finally {
+      setCalling(false);
+    }
+  }, [orderId, accessToken, calling]);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
 
@@ -384,9 +399,11 @@ export default function TrackingScreen({ route, navigation }) {
                 {rider.vehicleType ? rider.vehicleType.replace('_', ' ') : 'Quickrons'} · Quickrons
               </Text>
             </View>
-            {riderPhone ? (
-              <Pressable onPress={callRider} style={styles.callBtn}>
-                <Ionicons name="call" size={18} color={colors.brand} />
+            {canCallRider ? (
+              <Pressable onPress={callRider} disabled={calling} style={styles.callBtn}>
+                {calling
+                  ? <ActivityIndicator size="small" color={colors.brand} />
+                  : <Ionicons name="call" size={18} color={colors.brand} />}
               </Pressable>
             ) : (
               <View style={[styles.callBtn, { borderColor: colors.border }]}>

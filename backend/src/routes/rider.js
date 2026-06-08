@@ -609,7 +609,8 @@ router.get('/me/orders', asyncH(async (req, res) => {
         orderNumber:     true,
         status:          true,
         customerName:    true,
-        customerPhone:   true,   // for rider call-customer button
+        // customerPhone deliberately omitted — riders reach the customer via
+        // POST /orders/:id/contact (privacy-first), never the raw number.
         itemCount:       true,
         totalPaise:      true,
         paymentMethod:   true,

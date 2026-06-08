@@ -172,6 +172,11 @@ export const ordersApi = {
   submitRating: (id, body, token) =>
     request(`/api/v1/orders/${id}/rating`, { method: 'POST', body, token }),
 
+  // Privacy-first calling — resolves a dialable target for the counterparty
+  // (rider for a customer, customer for a rider) without exposing raw numbers.
+  // Returns { contact: { mode, dial, display, masked, notice, ... } }.
+  contact: (id, token) =>
+    request(`/api/v1/orders/${id}/contact`, { method: 'POST', token }),
 };
 
 // ─── Partner Ops ──────────────────────────────────────────────────────────────

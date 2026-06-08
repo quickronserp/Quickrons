@@ -13,11 +13,12 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
   RefreshControl, TextInput, Alert, KeyboardAvoidingView, Platform, Linking,
+  Modal, Animated, Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
-import { riderOpsApi } from '../lib/api';
+import { riderOpsApi, ordersApi } from '../lib/api';
 import socketClient from '../lib/socket';
 import { colors, radii, space } from '../theme';
 
@@ -33,9 +34,9 @@ const STATUS_COLOR = {
 
 function paise(p) { return `₹${(Number(p) / 100).toFixed(0)}`; }
 
-function callPhone(phone) {
-  if (!phone) return;
-  Linking.openURL(`tel:${phone}`).catch(() =>
+function dial(number) {
+  if (!number) return;
+  Linking.openURL(`tel:${number}`).catch(() =>
     Alert.alert('Cannot call', 'Your device cannot make calls right now.')
   );
 }
@@ -73,6 +74,8 @@ export default function RiderOpsScreen({ navigation }) {
   const [otpError, setOtpError]           = useState({});
   const [error, setError]                 = useState(null);
   const [togglingOnline, setTogglingOnline] = useState(false);
+  // Success confirmation shown right after a delivery completes.
+  const [deliveredInfo, setDeliveredInfo] = useState(null); // { orderNumber } | null
   const pollRef = useRef(null);
 
   const fetchAll = useCallback(async (quiet = false) => {
@@ -164,13 +167,19 @@ export default function RiderOpsScreen({ navigation }) {
 
   // Deliver action — wraps doAction with inline OTP error handling
   async function doDeliver(orderId, code) {
+    const order = activeOrders.find(o => o.id === orderId);
     setOtpError(prev => ({ ...prev, [orderId]: '' }));
     setActionLoading(prev => ({ ...prev, [orderId]: true }));
     try {
       await riderOpsApi.delivered(orderId, code, accessToken);
-      // Optimistically remove from active list — smoother UX
+      // Optimistically remove from active list and clear its OTP field — the
+      // card moves to "Completed Today" once fetchAll returns.
       setActiveOrders(prev => prev.filter(o => o.id !== orderId));
       setOtpInput(prev => { const n = { ...prev }; delete n[orderId]; return n; });
+      setOtpError(prev => { const n = { ...prev }; delete n[orderId]; return n; });
+      // Success confirmation — auto-dismisses; wallet/earnings refresh below.
+      setDeliveredInfo({ orderNumber: order?.orderNumber || '' });
+      // Refresh wallet, lifetime earnings, and completed-today list immediately.
       await fetchAll(true);
     } catch (e) {
       const msg = e.message || 'Action failed';
@@ -184,6 +193,26 @@ export default function RiderOpsScreen({ navigation }) {
       }
     } finally {
       setActionLoading(prev => ({ ...prev, [orderId]: false }));
+    }
+  }
+
+  // Privacy-first: the customer's raw number is not in the payload. Resolve a
+  // dialable target on demand via the contact endpoint.
+  const [callingOrder, setCallingOrder] = useState(null);
+  async function callCustomer(orderId) {
+    if (callingOrder) return;
+    setCallingOrder(orderId);
+    try {
+      const { contact } = await ordersApi.contact(orderId, accessToken);
+      if (!contact?.dial) {
+        Alert.alert('Cannot call', 'No contact number is available right now.');
+        return;
+      }
+      dial(contact.dial);
+    } catch (e) {
+      Alert.alert('Cannot call', e?.message || 'Could not connect the call.');
+    } finally {
+      setCallingOrder(null);
     }
   }
 
@@ -258,16 +287,17 @@ export default function RiderOpsScreen({ navigation }) {
           <Text style={styles.customerLabel} numberOfLines={1}>
             {order.customerName || 'Customer'}
           </Text>
-          {order.customerPhone ? (
-            <Pressable
-              onPress={() => callPhone(order.customerPhone)}
-              style={styles.miniCallBtn}
-              hitSlop={8}
-            >
-              <Ionicons name="call" size={14} color={colors.brand} />
-              <Text style={styles.miniCallTxt}>Call</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            onPress={() => callCustomer(order.id)}
+            disabled={callingOrder === order.id}
+            style={styles.miniCallBtn}
+            hitSlop={8}
+          >
+            {callingOrder === order.id
+              ? <ActivityIndicator size="small" color={colors.brand} />
+              : <Ionicons name="call" size={14} color={colors.brand} />}
+            <Text style={styles.miniCallTxt}>Call</Text>
+          </Pressable>
         </View>
 
         {/* Address + navigation */}
@@ -498,9 +528,80 @@ export default function RiderOpsScreen({ navigation }) {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Delivery success confirmation */}
+      <DeliverySuccessOverlay
+        info={deliveredInfo}
+        onDone={() => setDeliveredInfo(null)}
+      />
     </SafeAreaView>
   );
 }
+
+// ── Delivery success overlay ─────────────────────────────────────────────────
+// Animated checkmark + "Order delivered successfully" that auto-dismisses.
+// Reassures the rider the delivery + earnings settled without a manual refresh.
+function DeliverySuccessOverlay({ info, onDone }) {
+  const scale   = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!info) return;
+    scale.setValue(0);
+    opacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(scale, { toValue: 1, friction: 5, tension: 90, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+    const t = setTimeout(onDone, 2400);
+    return () => clearTimeout(t);
+  }, [info]);
+
+  if (!info) return null;
+
+  return (
+    <Modal transparent animationType="fade" visible={!!info} onRequestClose={onDone}>
+      <Pressable style={overlayStyles.backdrop} onPress={onDone}>
+        <Animated.View style={[overlayStyles.card, { opacity, transform: [{ scale }] }]}>
+          <View style={overlayStyles.checkCircle}>
+            <Ionicons name="checkmark" size={44} color="#fff" />
+          </View>
+          <Text style={overlayStyles.title}>Order delivered successfully</Text>
+          {info.orderNumber ? (
+            <Text style={overlayStyles.sub}>#{info.orderNumber}</Text>
+          ) : null}
+          <View style={overlayStyles.earnRow}>
+            <Ionicons name="wallet" size={15} color={colors.success} />
+            <Text style={overlayStyles.earnTxt}>Earnings added to your wallet</Text>
+          </View>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const overlayStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.55)',
+    alignItems: 'center', justifyContent: 'center', padding: space.xl,
+  },
+  card: {
+    backgroundColor: colors.bg, borderRadius: radii.lg, paddingVertical: 28, paddingHorizontal: 32,
+    alignItems: 'center', gap: 8, width: '100%', maxWidth: 320,
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, elevation: 8,
+  },
+  checkCircle: {
+    width: 80, height: 80, borderRadius: 40, backgroundColor: colors.success,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 6,
+  },
+  title: { fontSize: 18, fontWeight: '800', color: colors.ink, textAlign: 'center' },
+  sub:   { fontSize: 14, fontWeight: '700', color: colors.inkSoft },
+  earnRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6,
+    backgroundColor: colors.success + '14', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6,
+  },
+  earnTxt: { fontSize: 12, fontWeight: '700', color: colors.success },
+});
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
