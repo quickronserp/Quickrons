@@ -1,22 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import SegmentBadge from '../components/SegmentBadge';
-import { kitchensApi, API_BASE } from '../lib/api';
+import SmartImage from '../components/SmartImage';
+import { kitchensApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
-
-// MenuItem.imageUrl may be relative (/uploads/...) or absolute (https://cloudinary...).
-// Convert relative to absolute so RN <Image> can fetch it.
-function resolveImageUrl(url) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith('/')) return `${API_BASE}${url}`;
-  return url;
-}
 
 export default function PartnerScreen({ route, navigation }) {
   const { partnerId } = route.params;
@@ -65,7 +57,7 @@ export default function PartnerScreen({ route, navigation }) {
   // Normalise kitchen fields
   const name     = kitchen.brand         || kitchen.businessName || kitchen.name || '';
   const tagline  = kitchen.tagline       || kitchen.cuisineType || '';
-  const image    = resolveImageUrl(kitchen.bannerImageUrl || kitchen.profileImageUrl || null);
+  const image    = kitchen.bannerImageUrl || kitchen.profileImageUrl || null;
   const rating   = kitchen.averageRating || 0;
   const reviews  = kitchen.reviewCount   || 0;
   const etaMins  = kitchen.avgDeliveryMinutes || 30;
@@ -106,13 +98,15 @@ export default function PartnerScreen({ route, navigation }) {
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Hero banner */}
         <View>
-          {image ? (
-            <Image source={{ uri: image }} style={styles.hero} />
-          ) : (
-            <View style={[styles.hero, styles.heroPlaceholder]}>
-              <Ionicons name="restaurant" size={48} color={colors.inkMuted} />
-            </View>
-          )}
+          <SmartImage
+            uri={image}
+            style={styles.hero}
+            fallback={
+              <View style={[styles.hero, styles.heroPlaceholder]}>
+                <Ionicons name="restaurant" size={48} color={colors.inkMuted} />
+              </View>
+            }
+          />
           <SafeAreaView style={styles.heroBack} edges={['top']}>
             <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={20} color={colors.ink} />
@@ -207,8 +201,6 @@ function MenuItemRow({ item, cartItems, onAdd }) {
     item.isAvailable === false ||
     (item.dailyQuantityRemaining != null && item.dailyQuantityRemaining <= 0);
 
-  const imgSrc = resolveImageUrl(item.imageUrl);
-
   return (
     <View style={[menuStyles.row, unavailable && menuStyles.rowDim]}>
       <View style={{ flex: 1 }}>
@@ -233,13 +225,15 @@ function MenuItemRow({ item, cartItems, onAdd }) {
 
       {/* Right-side column: image thumb (when available) + add/sold-out CTA */}
       <View style={menuStyles.rightCol}>
-        {imgSrc ? (
-          <Image source={{ uri: imgSrc }} style={menuStyles.itemImg} resizeMode="cover" />
-        ) : (
-          <View style={[menuStyles.itemImg, menuStyles.itemImgEmpty]}>
-            <Ionicons name="restaurant-outline" size={22} color={colors.inkMuted} />
-          </View>
-        )}
+        <SmartImage
+          uri={item.imageUrl}
+          style={menuStyles.itemImg}
+          fallback={
+            <View style={[menuStyles.itemImg, menuStyles.itemImgEmpty]}>
+              <Ionicons name="restaurant-outline" size={22} color={colors.inkMuted} />
+            </View>
+          }
+        />
 
         {unavailable ? (
           <View style={menuStyles.soldOutBtn}>

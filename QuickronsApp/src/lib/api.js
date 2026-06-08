@@ -1,4 +1,66 @@
-export const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+
+// ─── API base resolution ───────────────────────────────────────────────────────
+//
+// The trap that made "images never appear" on demo phones: a hardcoded
+// `http://localhost:8080` resolves to the *device* on a physical phone / emulator,
+// not the laptop running the backend — so every API call AND every <Image> 404s.
+//
+// Resolution order:
+//   1. An explicit EXPO_PUBLIC_API_URL that is NOT localhost  → always honour it
+//      (this is how you point the app at Railway/staging).
+//   2. Web                                                    → localhost is correct
+//      (browser runs on the same machine as the backend).
+//   3. Native (device/emulator)                               → derive the dev
+//      machine's LAN IP from the Expo bundler host so a phone on the same Wi-Fi
+//      reaches the laptop automatically. Android emulator localhost → 10.0.2.2.
+const DEFAULT_PORT = 8080;
+
+function inferDevHost() {
+  // Expo SDK 50 exposes the Metro host here, e.g. "192.168.1.7:8081".
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    Constants.expoGoConfig?.debuggerHost ||
+    Constants.manifest2?.extra?.expoClient?.hostUri ||
+    Constants.manifest?.debuggerHost ||
+    '';
+  const host = String(hostUri).split(':')[0].trim();
+  return host || null;
+}
+
+function resolveApiBase() {
+  const envUrl = (process.env.EXPO_PUBLIC_API_URL || '').trim();
+  const envIsLocal = /localhost|127\.0\.0\.1/.test(envUrl);
+
+  // An explicit remote URL always wins.
+  if (envUrl && !envIsLocal) return envUrl.replace(/\/+$/, '');
+
+  // Web: the browser shares the host machine, so localhost is right.
+  if (Platform.OS === 'web') return (envUrl || `http://localhost:${DEFAULT_PORT}`).replace(/\/+$/, '');
+
+  // Native: localhost would mean the phone itself. Find the laptop.
+  const host = inferDevHost();
+  if (host && host !== 'localhost' && host !== '127.0.0.1') {
+    // Android emulator special-cases the host loopback as 10.0.2.2.
+    if (host === '10.0.2.2' || Platform.OS === 'android') return `http://${host}:${DEFAULT_PORT}`;
+    return `http://${host}:${DEFAULT_PORT}`;
+  }
+  return (envUrl || `http://localhost:${DEFAULT_PORT}`).replace(/\/+$/, '');
+}
+
+export const API_BASE = resolveApiBase();
+
+// Turn a backend image reference into something <Image source={{uri}}/> can load.
+// Backend may return an absolute https URL (Cloudinary) or a server-relative
+// "/uploads/…" path (local-disk storage). Relative paths are joined onto API_BASE.
+// Centralised so every screen resolves identically (previously duplicated 4×).
+export function resolveImageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) return `${API_BASE}${url}`;
+  return url;
+}
 
 class ApiError extends Error {
   constructor(message, { status, code, details } = {}) {

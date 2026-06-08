@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import SegmentBadge from './SegmentBadge';
+import SmartImage from './SmartImage';
 import { colors, radii, space } from '../theme';
 
 export default function PartnerCard({ partner, onPress }) {
@@ -17,13 +18,15 @@ export default function PartnerCard({ partner, onPress }) {
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
 
       {/* Hero image */}
-      {partner.image ? (
-        <Image source={{ uri: partner.image }} style={styles.image} resizeMode="cover" />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder]}>
-          <Ionicons name="restaurant" size={32} color={colors.inkMuted} />
-        </View>
-      )}
+      <SmartImage
+        uri={partner.image}
+        style={styles.image}
+        fallback={
+          <View style={[styles.image, styles.imagePlaceholder]}>
+            <Ionicons name="restaurant" size={32} color={colors.inkMuted} />
+          </View>
+        }
+      />
 
       {/* Content */}
       <View style={styles.body}>

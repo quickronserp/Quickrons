@@ -63,6 +63,11 @@ const USERS = [
 // `phone` must match the USERS entry above — used to look up the User.id.
 // `brand` is used as the find-by key for upsert (unique in dev).
 
+// Demo imagery (Unsplash, stable photo IDs). Gives the founder demo a populated
+// storefront without anyone having to upload by hand. Real uploads via the
+// partner app overwrite these. `tagline` shows under the brand on the feed.
+const IMG = (id, w = 1200) => `https://images.unsplash.com/${id}?w=${w}&q=80&auto=format&fit=crop`;
+
 const PARTNERS = [
   {
     phone:         '9876543211',
@@ -71,6 +76,9 @@ const PARTNERS = [
     category:      'HOME_MAKER',
     commissionBps: 1000,
     fssaiNumber:   'FSSAI-DEV-FATHIMA',
+    tagline:       'Authentic Malabar home cooking',
+    bannerImageUrl: IMG('photo-1585937421612-70a008356fbe'),
+    profileImageUrl: IMG('photo-1556909212-d5b604d0c90d', 400),
   },
   {
     phone:         '9876543221',
@@ -79,6 +87,9 @@ const PARTNERS = [
     category:      'RESTAURANT',
     commissionBps: 1500,
     fssaiNumber:   'FSSAI-DEV-MALABAR',
+    tagline:       'Classic Kerala hotel-style meals',
+    bannerImageUrl: IMG('photo-1517248135467-4c7edcad34c4'),
+    profileImageUrl: IMG('photo-1414235077428-338989a2e8c0', 400),
   },
   {
     phone:         '9876543222',
@@ -87,6 +98,9 @@ const PARTNERS = [
     category:      'HOME_MAKER',
     commissionBps: 1000,
     fssaiNumber:   'FSSAI-DEV-AMMU',
+    tagline:       'Comforting home-style lunch & dinner',
+    bannerImageUrl: IMG('photo-1567188040759-fb8a883dc6d8'),
+    profileImageUrl: IMG('photo-1466637574441-749b8f19452f', 400),
   },
   {
     phone:         '9876543223',
@@ -97,6 +111,9 @@ const PARTNERS = [
     category:      'FORRA_SUPPLIER',
     commissionBps: 1200,
     fssaiNumber:   'FSSAI-DEV-FORRA',
+    tagline:       'High-protein, gym-friendly Kerala nutrition',
+    bannerImageUrl: IMG('photo-1512621776951-a57141f2eefd'),
+    profileImageUrl: IMG('photo-1490645935967-10de6ba17061', 400),
   },
   {
     phone:         '9876543224',
@@ -105,8 +122,28 @@ const PARTNERS = [
     category:      'RESTAURANT',
     commissionBps: 1500,
     fssaiNumber:   'FSSAI-DEV-GRILL',
+    tagline:       'Charcoal grills, shawarma & BBQ',
+    bannerImageUrl: IMG('photo-1599487488170-d11ec9c172f0'),
+    profileImageUrl: IMG('photo-1529193591184-b1d58069ecdd', 400),
   },
 ];
+
+// Per-category dish photos — applied to any seeded menu item lacking an explicit
+// imageUrl. Keyed by the item's `category` string.
+const DISH_IMAGE_BY_CATEGORY = {
+  biryani:   IMG('photo-1563379091339-03b21ab4a4f8', 600),
+  mains:     IMG('photo-1631452180519-c014fe946bc7', 600),
+  breakfast: IMG('photo-1630383249896-424e482df921', 600),
+  snacks:    IMG('photo-1601050690597-df0568f70950', 600),
+  healthy:   IMG('photo-1512621776951-a57141f2eefd', 600),
+  wellness:  IMG('photo-1490645935967-10de6ba17061', 600),
+  catering:  IMG('photo-1555244162-803834f70033', 600),
+};
+const DISH_IMAGE_DEFAULT = IMG('photo-1504674900247-0877df9cc836', 600);
+
+function dishImage(item) {
+  return item.imageUrl || DISH_IMAGE_BY_CATEGORY[item.category] || DISH_IMAGE_DEFAULT;
+}
 
 // ─── Riders ───────────────────────────────────────────────────────────────────
 
@@ -427,6 +464,9 @@ async function main() {
       zoneCode:      'perinthalmanna',
       commissionBps: p.commissionBps,
       fssaiNumber:   p.fssaiNumber,
+      tagline:        p.tagline || null,
+      bannerImageUrl: p.bannerImageUrl || null,
+      profileImageUrl: p.profileImageUrl || null,
     };
 
     // Find existing partner by brand first, then by userId. The userId
@@ -540,6 +580,7 @@ async function main() {
         active:                 true,
         sortOrder:              m.sortOrder,
         category:               m.category,
+        imageUrl:               dishImage(m),
         dailyQuantityLimit:     m.dailyQuantityLimit,
         dailyQuantityRemaining: m.dailyQuantityRemaining,
         servingStartMinutes:    m.servingStartMinutes,
