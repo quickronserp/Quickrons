@@ -86,6 +86,7 @@ enum PaymentMethod {
   RAZORPAY
   COD
   WALLET
+  UPI
 }
 
 enum PaymentStatus {

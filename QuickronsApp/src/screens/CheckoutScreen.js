@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,12 +12,16 @@ import { addressesApi, ordersApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
 
 const PAY_METHODS = [
-  { id: 'COD',  label: 'Cash on delivery', icon: 'cash',          desc: 'Pay rider on arrival' },
+  { id: 'COD', label: 'Cash on delivery', icon: 'cash',       desc: 'Pay the rider on arrival' },
+  { id: 'UPI', label: 'UPI',              icon: 'qr-code',     desc: 'Pay now, enter the reference' },
 ];
-// UPI / Card can be added when a payment gateway is wired up.
+// The Quickrons UPI handle customers pay to. Configurable per-deploy; Razorpay
+// auto-collect arrives in a later sprint (we never auto-confirm UPI in the MVP).
+const UPI_VPA = process.env.EXPO_PUBLIC_UPI_VPA || 'quickrons@upi';
 
 export default function CheckoutScreen({ navigation }) {
   const [pay,      setPay]      = useState('COD');
+  const [upiRef,   setUpiRef]   = useState('');
   const [placing,  setPlacing]  = useState(false);
   const [selectedAddr, setSelectedAddr] = useState(null);
 
@@ -56,11 +61,20 @@ export default function CheckoutScreen({ navigation }) {
       return;
     }
 
+    if (pay === 'UPI' && upiRef.trim().length < 6) {
+      Alert.alert(
+        'Enter UPI reference',
+        `Pay ₹${total} to ${UPI_VPA} in your UPI app, then enter the reference / UTR shown there.`,
+      );
+      return;
+    }
+
     setPlacing(true);
     try {
       const body = {
         addressId:     activeAddress.id,
         paymentMethod: pay,
+        ...(pay === 'UPI' && { paymentRef: upiRef.trim() }),
         items: items.map(i => ({ menuItemId: i.menuItem.id, qty: i.qty })),
       };
 
@@ -154,6 +168,37 @@ export default function CheckoutScreen({ navigation }) {
           </Pressable>
         ))}
 
+        {/* UPI pay-now panel — QR placeholder + reference entry */}
+        {pay === 'UPI' && (
+          <View style={styles.upiPanel}>
+            <View style={styles.qrPlaceholder}>
+              <Ionicons name="qr-code" size={64} color={colors.ink} />
+              <Text style={styles.qrHint}>Scan to pay (QR coming soon)</Text>
+            </View>
+            <View style={styles.upiVpaRow}>
+              <Ionicons name="at" size={16} color={colors.brand} />
+              <Text style={styles.upiVpa}>{UPI_VPA}</Text>
+            </View>
+            <Text style={styles.upiSteps}>
+              1. Pay ₹{total} to the UPI ID above from any UPI app.{'\n'}
+              2. Enter the reference / UTR number it shows you below.{'\n'}
+              3. We confirm your payment and start your order.
+            </Text>
+            <TextInput
+              style={styles.upiInput}
+              value={upiRef}
+              onChangeText={t => setUpiRef(t.replace(/[^0-9A-Za-z]/g, '').slice(0, 40))}
+              placeholder="UPI reference / UTR number"
+              placeholderTextColor={colors.inkMuted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <Text style={styles.upiNote}>
+              Payment shows as “pending” until we verify it — your order is placed either way.
+            </Text>
+          </View>
+        )}
+
         {/* Order summary */}
         <Text style={styles.section}>Your order</Text>
         <View style={styles.card}>
@@ -176,7 +221,7 @@ export default function CheckoutScreen({ navigation }) {
         <View style={styles.trustBox}>
           <Ionicons name="shield-checkmark" size={20} color={colors.success} />
           <Text style={styles.trustTxt}>
-            Tamper-evident packaging. 100% replacement guarantee on Quickrons partners.
+            Delivery confirmed with a one-time code. 100% replacement guarantee on Quickrons partners.
           </Text>
         </View>
       </ScrollView>
@@ -227,6 +272,28 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, marginBottom: 8,
   },
   payRowActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
+  upiPanel: {
+    backgroundColor: colors.bg, borderRadius: radii.md, padding: space.md,
+    borderWidth: 1, borderColor: colors.brand + '40', marginBottom: 8, gap: 10,
+  },
+  qrPlaceholder: {
+    alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.bgAlt, borderRadius: radii.md, paddingVertical: 24,
+    borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
+  },
+  qrHint: { fontSize: 11, color: colors.inkMuted, fontWeight: '600' },
+  upiVpaRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: colors.brandTint, borderRadius: 999, paddingVertical: 8,
+  },
+  upiVpa: { fontSize: 15, fontWeight: '800', color: colors.brand, letterSpacing: 0.3 },
+  upiSteps: { fontSize: 12, color: colors.inkSoft, lineHeight: 20 },
+  upiInput: {
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radii.sm,
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.ink,
+    backgroundColor: colors.bgAlt, letterSpacing: 1,
+  },
+  upiNote: { fontSize: 11, color: colors.inkMuted, fontStyle: 'italic' },
   radio: {
     width: 20, height: 20, borderRadius: 10,
     borderWidth: 2, borderColor: colors.inkMuted,

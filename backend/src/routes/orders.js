@@ -15,6 +15,7 @@ const prisma  = require('../prisma');
 const { asyncH, BadRequest, NotFound, Unauthorized } = require('../error');
 const { verifyToken, requireRole } = require('../middleware/auth');
 const { generateOrderNumber } = require('../utils/orderNumber');
+const { resolveContact } = require('../lib/calling');
 const {
   emitOrderPlaced,
   emitOrderCancelled,
@@ -34,7 +35,9 @@ const ORDER_INCLUDE = {
       fullName:      true,
       vehicleType:   true,
       vehicleNumber: true,
-      user: { select: { phone: true } },
+      // NOTE: the rider's real phone is deliberately NOT included. The customer
+      // reaches the rider via POST /orders/:id/contact (privacy-first calling),
+      // never by reading the raw number from the order payload.
     },
   },
   events: {
@@ -79,7 +82,11 @@ const ORDER_INCLUDE = {
 //   • dailyQuantityRemaining decremented atomically with order creation
 //   • OrderEvent created in the same transaction
 
-const VALID_PAYMENT_METHODS = ['COD', 'RAZORPAY', 'WALLET'];
+// UPI is the MVP-safe online method: the customer pays out-of-band to the
+// Quickrons UPI handle and enters the 12-digit UPI reference. We store the
+// method + reference and leave paymentStatus PENDING until an operator (or, in
+// a later sprint, a PSP webhook) confirms — we NEVER auto-mark UPI as paid.
+const VALID_PAYMENT_METHODS = ['COD', 'UPI', 'RAZORPAY', 'WALLET'];
 
 // ─── Fee schedule — SERVER-AUTHORITATIVE (paise) ─────────────────────────────
 //
@@ -105,7 +112,7 @@ function computeFees(subtotalPaise) {
 }
 
 router.post('/', verifyToken, asyncH(async (req, res) => {
-  const { items, addressId, paymentMethod = 'COD' } = req.body || {};
+  const { items, addressId, paymentMethod = 'COD', paymentRef } = req.body || {};
 
   // ── 1. Basic input validation ──────────────────────────────────────────────
   if (!Array.isArray(items) || items.length === 0) {
@@ -116,6 +123,15 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
   }
   if (!VALID_PAYMENT_METHODS.includes(paymentMethod)) {
     throw BadRequest(`paymentMethod must be one of: ${VALID_PAYMENT_METHODS.join(', ')}`);
+  }
+
+  // UPI requires the customer to supply the reference shown by their UPI app.
+  let cleanPaymentRef = null;
+  if (paymentMethod === 'UPI') {
+    if (typeof paymentRef !== 'string' || paymentRef.trim().length < 6) {
+      throw BadRequest('For UPI, enter the payment reference / UTR shown in your UPI app (at least 6 characters)');
+    }
+    cleanPaymentRef = paymentRef.trim().slice(0, 40);
   }
 
   for (const it of items) {
@@ -290,9 +306,11 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
         itemCount,
         // Status.
         status:        'PLACED',
-        // Payment.
+        // Payment. UPI/RAZORPAY stay PENDING until confirmed out-of-band —
+        // we never trust the client to declare a payment captured.
         paymentMethod,
         paymentStatus: 'PENDING',
+        paymentRefId:  cleanPaymentRef,
         // Line items — price + name snapshots baked in.
         items: {
           create: validatedItems.map(vi => ({
@@ -406,6 +424,68 @@ router.post('/:id/cancel', verifyToken, asyncH(async (req, res) => {
 
   emitOrderCancelled(updated);
   res.json({ order: updated });
+}));
+
+// ─── POST /:id/contact — privacy-safe rider ⇄ customer calling ───────────────
+//
+// Either party (the order's customer or its assigned rider) asks the server for
+// a dialable target instead of reading the counterparty's raw number from any
+// payload. The actual number is resolved server-side through lib/calling
+// (provider-swappable: app-contact today, Twilio/Exotel masking later).
+//
+// Returns: { contact: { mode, dial, display, masked, expiresAt, notice } }
+//
+// Contactable only while the delivery is live (CONFIRMED … PICKED_UP). Once the
+// order is DELIVERED/CANCELLED/FAILED the relationship is over → 400.
+
+const CONTACTABLE_STATUSES = [
+  'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP', 'PICKED_UP', 'OUT_FOR_DELIVERY',
+];
+
+router.post('/:id/contact', verifyToken, asyncH(async (req, res) => {
+  const order = await prisma.order.findFirst({
+    where:  { OR: [{ id: req.params.id }, { orderNumber: req.params.id }] },
+    select: {
+      id: true, status: true, customerId: true, customerPhone: true, customerName: true,
+      riderId: true,
+      rider: { select: { fullName: true, user: { select: { phone: true } } } },
+    },
+  });
+  if (!order) throw NotFound('Order not found');
+
+  if (!CONTACTABLE_STATUSES.includes(order.status)) {
+    throw BadRequest('Calling is only available while the delivery is in progress');
+  }
+
+  const role = req.user.role;
+  let callerRole, peerRealPhone, peerName;
+
+  if (role === 'CUSTOMER' || role === 'ADMIN') {
+    // Customer (or admin acting on their behalf) calling the rider.
+    if (role === 'CUSTOMER' && order.customerId !== req.user.id) {
+      throw NotFound('Order not found');
+    }
+    if (!order.riderId || !order.rider) throw BadRequest('No rider is assigned to this order yet');
+    callerRole    = 'CUSTOMER';
+    peerRealPhone = order.rider.user?.phone || null;
+    peerName      = order.rider.fullName || 'Rider';
+  } else if (role === 'RIDER') {
+    // Rider calling the customer. Authorisation: must be the assigned rider.
+    const rider = await prisma.rider.findUnique({
+      where: { userId: req.user.id }, select: { id: true },
+    });
+    if (!rider || rider.id !== order.riderId) throw NotFound('Order not found');
+    callerRole    = 'RIDER';
+    peerRealPhone = order.customerPhone || null;
+    peerName      = order.customerName || 'Customer';
+  } else {
+    throw Unauthorized('Not allowed to contact on this order');
+  }
+
+  if (!peerRealPhone) throw BadRequest('No contact number is available for this party');
+
+  const contact = await resolveContact({ order, callerRole, peerRealPhone, peerName });
+  res.json({ contact });
 }));
 
 // ─── POST /:id/rating — customer rates a delivered order ─────────────────────
