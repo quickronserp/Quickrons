@@ -31,6 +31,15 @@ const STATUS_COLOR = {
   FAILED:           colors.danger,
 };
 
+const PAYMENT_COLOR = {
+  PENDING:            colors.accent,
+  AUTHORIZED:         colors.brand,
+  CAPTURED:           colors.success,
+  FAILED:             colors.danger,
+  REFUNDED:           '#7C3AED',
+  PARTIALLY_REFUNDED: '#7C3AED',
+};
+
 const TABS = ['orders', 'analytics', 'riders', 'partners', 'reviews'];
 
 function formatDate(iso) {
@@ -255,6 +264,16 @@ export default function AdminOpsScreen({ navigation }) {
                 <Text style={styles.metaTxt}>
                   {paise(o.totalPaise)} · {o.paymentMethod}
                 </Text>
+              </View>
+              {/* Payment status — visible so ops can spot unpaid UPI/online orders */}
+              <View style={styles.payRow}>
+                <Ionicons name="card-outline" size={12} color={colors.inkMuted} />
+                <Text style={styles.payRowTxt}>Payment</Text>
+                <View style={[styles.payPill, { backgroundColor: (PAYMENT_COLOR[o.paymentStatus] || colors.inkMuted) + '20' }]}>
+                  <Text style={[styles.payPillTxt, { color: PAYMENT_COLOR[o.paymentStatus] || colors.inkMuted }]}>
+                    {(o.paymentStatus || 'PENDING').replace(/_/g, ' ')}
+                  </Text>
+                </View>
               </View>
               {!isTerminal && (
                 <Pressable
@@ -531,6 +550,10 @@ const styles = StyleSheet.create({
   subText: { fontSize: 12, color: colors.inkSoft, marginTop: 1 },
   cardMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   metaTxt: { fontSize: 12, color: colors.inkSoft },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  payRowTxt: { fontSize: 12, color: colors.inkMuted, flex: 1 },
+  payPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  payPillTxt: { fontSize: 10, fontWeight: '800' },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusPillTxt: { fontSize: 10, fontWeight: '800' },
   cancelBtn: {

@@ -39,6 +39,23 @@ const ADVANCE_EVENTS = [
   'RIDER_ASSIGNED', 'ORDER_PICKED_UP', 'ORDER_DELIVERED', 'ORDER_CANCELLED',
 ];
 
+// Open the delivery location in Google Maps (works on Android + iOS + web).
+function openDeliveryMap(order) {
+  const lat = parseFloat(order?.addrLat);
+  const lng = parseFloat(order?.addrLng);
+  let url;
+  if (!isNaN(lat) && !isNaN(lng)) {
+    url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  } else {
+    const label = [order?.addrLine1, order?.addrCity, order?.addrPincode].filter(Boolean).join(', ');
+    if (!label) return;
+    url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(label)}`;
+  }
+  Linking.openURL(url).catch(() =>
+    Alert.alert('Cannot open maps', 'Install Google Maps or check your connection.')
+  );
+}
+
 // Timeout-safe fetch — rejects after `ms` milliseconds
 function withTimeout(promise, ms) {
   const ctrl = new AbortController();
@@ -422,6 +439,23 @@ export default function TrackingScreen({ route, navigation }) {
           </View>
         ) : null}
 
+        {/* Delivery address + map — only while the order is in flight */}
+        {!isDelivered && !isFailed && (order.addrLine1 || order.addrCity) ? (
+          <View style={styles.addrCard}>
+            <Ionicons name="location" size={18} color={colors.brand} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.addrCardLabel}>Delivering to</Text>
+              <Text style={styles.addrCardTxt} numberOfLines={2}>
+                {[order.addrLine1, order.addrLandmark, order.addrCity, order.addrPincode].filter(Boolean).join(', ')}
+              </Text>
+            </View>
+            <Pressable onPress={() => openDeliveryMap(order)} style={styles.mapBtn} hitSlop={6}>
+              <Ionicons name="navigate" size={16} color={colors.brand} />
+              <Text style={styles.mapBtnTxt}>Map</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* Delivery OTP — customer reads this code to the rider at door */}
         {status === 'PICKED_UP' && order?.deliveryOtp && (
           <View style={styles.verifyCard}>
@@ -523,6 +557,19 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5, borderColor: colors.brand,
   },
+  addrCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.bgAlt, padding: space.md, borderRadius: radii.md,
+    marginTop: space.md, borderWidth: 1, borderColor: colors.border,
+  },
+  addrCardLabel: { fontSize: 11, color: colors.inkMuted, fontWeight: '700', textTransform: 'uppercase' },
+  addrCardTxt: { fontSize: 13, color: colors.ink, marginTop: 2, lineHeight: 18 },
+  mapBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.sm,
+    borderWidth: 1.5, borderColor: colors.brand,
+  },
+  mapBtnTxt: { fontSize: 12, fontWeight: '800', color: colors.brand },
   verifyCard: {
     backgroundColor: colors.brandTint, borderRadius: radii.md, padding: space.md,
     marginTop: space.md, borderWidth: 1, borderColor: colors.brand + '40', alignItems: 'center',
