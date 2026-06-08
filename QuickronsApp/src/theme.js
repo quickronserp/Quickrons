@@ -50,7 +50,8 @@ export const segmentMeta = {
   hotel:     { label: 'Restaurant',     color: colors.hotel,     icon: 'business' },
   caterer:   { label: 'Caterer',        color: colors.caterer,   icon: 'people' },
   // backend businessType aliases
-  FORRA_KITCHEN: { label: 'Forra Foods', color: colors.forra,     icon: 'flame' },
+  FORRA_KITCHEN:  { label: 'Forra Foods', color: colors.forra,     icon: 'flame' },
+  FORRA_SUPPLIER: { label: 'Forra Foods', color: colors.forra,     icon: 'flame' },
   HOME_MAKER:    { label: 'Home Made',   color: colors.homeMaker, icon: 'home' },
   HOTEL:         { label: 'Restaurant',  color: colors.hotel,     icon: 'business' },
   RESTAURANT:    { label: 'Restaurant',  color: colors.hotel,     icon: 'business' },

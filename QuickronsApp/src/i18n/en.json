@@ -31,7 +31,7 @@
       "preorder": "Pre-order",
       "preorder_desc": "Schedule from top kitchens"
     },
-    "filters": { "all": "All", "forra": "Forra", "home": "Home cooks", "hotel": "Restaurants", "caterer": "Catering" },
+    "filters": { "all": "All", "forra": "Forra Foods", "home": "Home cooks", "hotel": "Restaurants", "caterer": "Catering" },
     "section_kitchens": "{{count}} kitchens delivering near you",
     "forra_spotlight_tag": "OUR FLAGSHIP",
     "forra_spotlight_title": "Forra Foods",

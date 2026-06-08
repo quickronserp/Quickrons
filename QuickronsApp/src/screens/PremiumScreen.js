@@ -52,7 +52,7 @@ export default function PremiumScreen({ navigation }) {
             <Text style={styles.calcTitle}>You save ₹400+ per month</Text>
             <Text style={styles.calcDesc}>
               Average Plus member orders 11 times per month. Free delivery (₹39 × 11) plus
-              8% off Forra (~₹120) easily covers the membership.
+              8% off Forra Foods (~₹120) easily covers the membership.
             </Text>
           </View>
         </View>
