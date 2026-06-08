@@ -152,6 +152,126 @@ router.get('/orders', asyncH(async (req, res) => {
   res.json({ orders, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
 }));
 
+// ─── GET /orders/stuck ────────────────────────────────────────────────────────
+//
+// MUST be registered before GET /orders/:id — otherwise "stuck" is captured by
+// the :id param and looked up as an order number (→ 404), and the admin
+// stuck-orders panel silently never loads.
+//
+// Surfaces orders that are operationally stuck and need ops attention.
+// All thresholds are conservative so this can run every 15-30s on the admin
+// dashboard without noise.
+//
+// A) READY_FOR_PICKUP for > 5 min with no rider     — no one accepted yet
+// B) OUT_FOR_DELIVERY for > 15 min                  — rider hasn't picked up
+// C) PICKED_UP        for > 10 min                  — customer hasn't verified
+// D) paymentStatus PENDING for > 10 min (non-COD)   — payment never captured
+// E) PLACED           for > 4 min                   — partner hasn't accepted
+
+const STUCK_THRESHOLDS_MIN = {
+  PLACED:            4,
+  READY_FOR_PICKUP:  5,
+  OUT_FOR_DELIVERY: 15,
+  PICKED_UP:        10,
+  PAYMENT_PENDING:  10,
+};
+
+router.get('/orders/stuck', asyncH(async (_req, res) => {
+  const now = Date.now();
+  const cutoff = (mins) => new Date(now - mins * 60 * 1000);
+
+  const baseSelect = {
+    id:               true,
+    orderNumber:      true,
+    status:           true,
+    zoneCode:         true,
+    customerName:     true,
+    customerPhone:    true,
+    totalPaise:       true,
+    paymentMethod:    true,
+    paymentStatus:    true,
+    createdAt:        true,
+    pickedUpAt:       true,
+    partner:          { select: { id: true, brand: true } },
+    rider:            { select: { id: true, fullName: true } },
+  };
+
+  const [unaccepted, unclaimed, lingeringOnRoad, awaitingCustomer, paymentStuck] = await Promise.all([
+    // E) PLACED but partner never accepted
+    prisma.order.findMany({
+      where: {
+        status:    'PLACED',
+        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PLACED) },
+      },
+      orderBy: { createdAt: 'asc' },
+      take:    25,
+      select:  baseSelect,
+    }),
+    // A) READY_FOR_PICKUP with no rider
+    prisma.order.findMany({
+      where: {
+        status:    'READY_FOR_PICKUP',
+        riderId:   null,
+        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.READY_FOR_PICKUP) },
+      },
+      orderBy: { createdAt: 'asc' },
+      take:    25,
+      select:  baseSelect,
+    }),
+    // B) OUT_FOR_DELIVERY too long (rider has order but not picked up)
+    prisma.order.findMany({
+      where: {
+        status:    'OUT_FOR_DELIVERY',
+        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.OUT_FOR_DELIVERY) },
+      },
+      orderBy: { createdAt: 'asc' },
+      take:    25,
+      select:  baseSelect,
+    }),
+    // C) PICKED_UP too long without delivery OTP confirmation
+    prisma.order.findMany({
+      where: {
+        status: 'PICKED_UP',
+        OR: [
+          { pickedUpAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },
+          { pickedUpAt: null, createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take:    25,
+      select:  baseSelect,
+    }),
+    // D) non-COD payment stuck PENDING
+    prisma.order.findMany({
+      where: {
+        paymentStatus: 'PENDING',
+        paymentMethod: { not: 'COD' },
+        createdAt:     { lt: cutoff(STUCK_THRESHOLDS_MIN.PAYMENT_PENDING) },
+        status:        { notIn: ['CANCELLED', 'FAILED'] },
+      },
+      orderBy: { createdAt: 'asc' },
+      take:    25,
+      select:  baseSelect,
+    }),
+  ]);
+
+  const totalCount =
+    unaccepted.length + unclaimed.length + lingeringOnRoad.length +
+    awaitingCustomer.length + paymentStuck.length;
+
+  res.json({
+    totalCount,
+    thresholds: STUCK_THRESHOLDS_MIN,
+    buckets: {
+      unaccepted,                  // partner hasn't accepted PLACED order
+      unclaimed,                   // READY_FOR_PICKUP, no rider
+      lingeringOnRoad,             // OUT_FOR_DELIVERY too long
+      awaitingCustomer,            // PICKED_UP, customer hasn't verified
+      paymentStuck,                // non-COD PENDING
+    },
+  });
+}));
+
 // ─── GET /orders/:id ──────────────────────────────────────────────────────────
 
 router.get('/orders/:id', asyncH(async (req, res) => {
@@ -538,124 +658,6 @@ router.get('/analytics', asyncH(async (req, res) => {
         to:   dateFilter.lte?.toISOString() ?? null,
       },
     }),
-  });
-}));
-
-// ─── GET /orders/stuck ────────────────────────────────────────────────────────
-//
-// Surfaces orders that are operationally stuck and need ops attention.
-// All thresholds are conservative so this can run every 15-30s on the admin
-// dashboard without noise.
-//
-// A) READY_FOR_PICKUP for > 5 min with no rider     — no one accepted yet
-// B) OUT_FOR_DELIVERY for > 15 min                  — rider hasn't picked up
-// C) PICKED_UP        for > 10 min                  — customer hasn't verified
-// D) paymentStatus PENDING for > 10 min (non-COD)   — payment never captured
-// E) PLACED           for > 4 min                   — partner hasn't accepted
-//
-// Response is bucketed so the UI can render a section per category.
-
-const STUCK_THRESHOLDS_MIN = {
-  PLACED:            4,
-  READY_FOR_PICKUP:  5,
-  OUT_FOR_DELIVERY: 15,
-  PICKED_UP:        10,
-  PAYMENT_PENDING:  10,
-};
-
-router.get('/orders/stuck', asyncH(async (_req, res) => {
-  const now = Date.now();
-  const cutoff = (mins) => new Date(now - mins * 60 * 1000);
-
-  const baseSelect = {
-    id:               true,
-    orderNumber:      true,
-    status:           true,
-    zoneCode:         true,
-    customerName:     true,
-    customerPhone:    true,
-    totalPaise:       true,
-    paymentMethod:    true,
-    paymentStatus:    true,
-    createdAt:        true,
-    pickedUpAt:       true,
-    partner:          { select: { id: true, brand: true } },
-    rider:            { select: { id: true, fullName: true } },
-  };
-
-  const [unaccepted, unclaimed, lingeringOnRoad, awaitingCustomer, paymentStuck] = await Promise.all([
-    // E) PLACED but partner never accepted
-    prisma.order.findMany({
-      where: {
-        status:    'PLACED',
-        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PLACED) },
-      },
-      orderBy: { createdAt: 'asc' },
-      take:    25,
-      select:  baseSelect,
-    }),
-    // A) READY_FOR_PICKUP with no rider
-    prisma.order.findMany({
-      where: {
-        status:    'READY_FOR_PICKUP',
-        riderId:   null,
-        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.READY_FOR_PICKUP) },
-      },
-      orderBy: { createdAt: 'asc' },
-      take:    25,
-      select:  baseSelect,
-    }),
-    // B) OUT_FOR_DELIVERY too long (rider has order but not picked up)
-    prisma.order.findMany({
-      where: {
-        status:    'OUT_FOR_DELIVERY',
-        createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.OUT_FOR_DELIVERY) },
-      },
-      orderBy: { createdAt: 'asc' },
-      take:    25,
-      select:  baseSelect,
-    }),
-    // C) PICKED_UP too long without delivery OTP confirmation
-    prisma.order.findMany({
-      where: {
-        status: 'PICKED_UP',
-        OR: [
-          { pickedUpAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },
-          { pickedUpAt: null, createdAt: { lt: cutoff(STUCK_THRESHOLDS_MIN.PICKED_UP) } },
-        ],
-      },
-      orderBy: { createdAt: 'asc' },
-      take:    25,
-      select:  baseSelect,
-    }),
-    // D) non-COD payment stuck PENDING
-    prisma.order.findMany({
-      where: {
-        paymentStatus: 'PENDING',
-        paymentMethod: { not: 'COD' },
-        createdAt:     { lt: cutoff(STUCK_THRESHOLDS_MIN.PAYMENT_PENDING) },
-        status:        { notIn: ['CANCELLED', 'FAILED'] },
-      },
-      orderBy: { createdAt: 'asc' },
-      take:    25,
-      select:  baseSelect,
-    }),
-  ]);
-
-  const totalCount =
-    unaccepted.length + unclaimed.length + lingeringOnRoad.length +
-    awaitingCustomer.length + paymentStuck.length;
-
-  res.json({
-    totalCount,
-    thresholds: STUCK_THRESHOLDS_MIN,
-    buckets: {
-      unaccepted,                  // partner hasn't accepted PLACED order
-      unclaimed:        unclaimed, // READY_FOR_PICKUP, no rider
-      lingeringOnRoad,             // OUT_FOR_DELIVERY too long
-      awaitingCustomer,            // PICKED_UP, customer hasn't verified
-      paymentStuck,                // non-COD PENDING
-    },
   });
 }));
 
