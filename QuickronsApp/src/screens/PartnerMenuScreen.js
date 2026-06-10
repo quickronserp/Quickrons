@@ -18,12 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { partnerMenuApi, API_BASE } from '../lib/api';
+import { pickImage, imagePickerAvailable, IMAGE_TARGETS } from '../lib/imagePick';
 import { colors, radii, space } from '../theme';
-
-// expo-image-picker is loaded lazily so the bundle still compiles before the
-// dependency is installed. The Upload button shows a clear hint until then.
-let ImagePicker = null;
-try { ImagePicker = require('expo-image-picker'); } catch (_) { /* run: npx expo install expo-image-picker */ }
 
 // Backend may return a relative path (/uploads/menu/<id>/<file>.jpg) for
 // local-disk storage, or an absolute https://res.cloudinary.com/... URL.
@@ -147,74 +143,36 @@ export default function PartnerMenuScreen({ navigation }) {
   // skip the source choice and go straight to the library picker.
 
   async function pickAndUpload(source /* 'camera' | 'library' */) {
-    if (!ImagePicker) {
+    if (!imagePickerAvailable) {
       Alert.alert(
         'Setup required',
-        'The image picker module is not installed.\n\nRun this in the QuickronsApp folder:\n\n  npx expo install expo-image-picker',
+        'The image picker is not available.\n\nRun this in the QuickronsApp folder:\n\n  npx expo install expo-image-picker',
       );
       return;
     }
+    let payload;
     try {
-      // Permissions — only relevant on native. Web returns granted automatically.
-      if (Platform.OS !== 'web') {
-        if (source === 'camera') {
-          const perm = await ImagePicker.requestCameraPermissionsAsync();
-          if (!perm.granted) {
-            Alert.alert('Camera permission denied', 'Grant camera access from system settings to take a photo.');
-            return;
-          }
-        } else {
-          const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (!perm.granted) {
-            Alert.alert('Gallery permission denied', 'Grant photo access from system settings to pick from gallery.');
-            return;
-          }
-        }
-      }
-
-      const launcher = source === 'camera'
-        ? ImagePicker.launchCameraAsync
-        : ImagePicker.launchImageLibraryAsync;
-
-      const result = await launcher({
-        mediaTypes:  ImagePicker.MediaTypeOptions
-          ? ImagePicker.MediaTypeOptions.Images       // SDK 50+ enum
-          : 'Images',
-        allowsEditing: true,
-        aspect:        [4, 3],
-        quality:       0.85,
-      });
-
-      if (result.canceled) return;
-      const asset = result.assets?.[0];
-      if (!asset) return;
-
-      // Build the FormData payload. Web returns asset.file (a real File);
-      // native returns just a uri — wrap into { uri, name, type } so RN's
-      // FormData.append serialises it correctly.
-      let payload;
-      if (Platform.OS === 'web' && asset.file) {
-        payload = asset.file;
-      } else {
-        const uri  = asset.uri;
-        // Derive type/name — Expo gives mimeType in SDK 49+; fall back if missing.
-        const type = asset.mimeType || (uri.endsWith('.png') ? 'image/png' : 'image/jpeg');
-        const ext  = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
-        const name = asset.fileName || `upload.${ext}`;
-        payload = { uri, name, type };
-      }
-
-      setUploading(true);
-      try {
-        const { url } = await partnerMenuApi.upload(payload, accessToken);
-        setEditing(e => ({ ...e, imageUrl: url }));
-      } catch (err) {
-        Alert.alert('Upload failed', err.message || 'Could not upload image');
-      } finally {
-        setUploading(false);
-      }
+      payload = await pickImage('dish', { source });   // resized + JPEG-normalised
     } catch (err) {
-      Alert.alert('Could not open picker', err.message || String(err));
+      if (err?.setup) {
+        Alert.alert('Setup required', 'Run: npx expo install expo-image-picker');
+      } else if (err?.permission) {
+        Alert.alert('Permission needed', 'Grant photo/camera access from system settings to add a photo.');
+      } else {
+        Alert.alert('Could not open picker', err?.message || String(err));
+      }
+      return;
+    }
+    if (!payload) return;                               // user cancelled
+
+    setUploading(true);
+    try {
+      const { url } = await partnerMenuApi.upload(payload, accessToken);
+      setEditing(e => ({ ...e, imageUrl: url }));
+    } catch (err) {
+      Alert.alert('Upload failed', err.message || 'Could not upload image');
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -495,8 +453,8 @@ export default function PartnerMenuScreen({ navigation }) {
 
               <Text style={styles.hint}>
                 {Platform.OS === 'web'
-                  ? 'JPG, PNG, or WebP · max 5 MB. The photo uploads to Quickrons storage.'
-                  : 'JPG, PNG, or WebP · max 5 MB. Take a fresh photo or pick from your gallery.'}
+                  ? `JPG, PNG or WebP. Recommended ${IMAGE_TARGETS.dish.recommend}. Large photos are resized automatically.`
+                  : `JPG, PNG or WebP. Recommended ${IMAGE_TARGETS.dish.recommend}. Take a fresh photo or pick from your gallery.`}
               </Text>
 
               {/* Advanced: paste a URL instead of uploading */}

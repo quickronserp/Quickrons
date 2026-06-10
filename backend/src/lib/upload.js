@@ -26,7 +26,9 @@ const crypto   = require('crypto');
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MAX_BYTES = 5 * 1024 * 1024;                   // 5 MB
+const MAX_BYTES = 10 * 1024 * 1024;                  // 10 MB — clients resize first,
+                                                     // this is the safety ceiling for
+                                                     // large phone-camera originals.
 const ALLOWED   = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const EXT_BY_MIME = {
   'image/jpeg': 'jpg',
@@ -82,7 +84,7 @@ if (HAS_CLOUDINARY) {
 // If multer isn't installed yet, exports a stub that returns a clear 500 so
 // the deploy log obviously points at the missing dep instead of a cryptic crash.
 
-const uploadMw = multer
+const rawUpload = multer
   ? multer({
       storage: multer.memoryStorage(),
       limits:  { fileSize: MAX_BYTES, files: 1 },
@@ -93,11 +95,26 @@ const uploadMw = multer
         cb(null, true);
       },
     }).single('file')
-  : function multerMissing (_req, _res, next) {
-      const err = new Error('Image upload is not configured on this server — run: npm i multer cloudinary');
-      err.status = 500;
-      next(err);
-    };
+  : null;
+
+// Wrap multer so its rejections (unsupported type, file too large) become clear
+// 400s instead of bubbling to the central handler as opaque 500s. Dangerous /
+// non-image files are rejected here before any disk or Cloudinary write.
+function uploadMw (req, res, next) {
+  if (!rawUpload) {
+    return res.status(500).json({
+      error: { code: 'UPLOAD_NOT_CONFIGURED', message: 'Image upload is not configured — run: npm i multer cloudinary' },
+    });
+  }
+  rawUpload(req, res, (err) => {
+    if (!err) return next();
+    let message = err.message || 'Upload rejected';
+    if (multer && err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      message = `Image too large — max ${Math.round(MAX_BYTES / (1024 * 1024))} MB.`;
+    }
+    return res.status(400).json({ error: { code: 'UPLOAD_REJECTED', message } });
+  });
+}
 
 // ─── Storage drivers ─────────────────────────────────────────────────────────
 

@@ -21,11 +21,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { partnerApi, partnerMenuApi, API_BASE } from '../lib/api';
+import { pickImage, imagePickerAvailable, IMAGE_TARGETS } from '../lib/imagePick';
 import { colors, radii, space } from '../theme';
-
-// expo-image-picker is loaded lazily so the bundle compiles before install.
-let ImagePicker = null;
-try { ImagePicker = require('expo-image-picker'); } catch (_) { /* npx expo install expo-image-picker */ }
 
 const GALLERY_MAX = 12;
 
@@ -86,57 +83,40 @@ export default function PartnerBrandingScreen({ navigation }) {
     JSON.stringify(galleryUrls) !== JSON.stringify(saved.galleryUrls);
 
   // ── Pick + upload one image; returns the stored url (or null on cancel) ────
+  // Uses the shared picker: a real <input type="file"> + canvas resize on web,
+  // expo-image-picker (+ optional resize) on native.
   async function pickAndUpload(slot) {
-    if (!ImagePicker) {
+    if (!imagePickerAvailable) {
       Alert.alert(
         'Setup required',
-        'The image picker module is not installed.\n\nRun this in the QuickronsApp folder:\n\n  npx expo install expo-image-picker',
+        'The image picker is not available.\n\nRun this in the QuickronsApp folder:\n\n  npx expo install expo-image-picker',
       );
       return null;
     }
+    let payload;
     try {
-      if (Platform.OS !== 'web') {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) {
-          Alert.alert('Gallery permission denied', 'Grant photo access from system settings to pick an image.');
-          return null;
-        }
-      }
-
-      // Banner is wide (16:9); profile is square; gallery free (4:3).
-      const aspect = slot === 'banner' ? [16, 9] : slot === 'profile' ? [1, 1] : [4, 3];
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions ? ImagePicker.MediaTypeOptions.Images : 'Images',
-        allowsEditing: true,
-        aspect,
-        quality: 0.85,
-      });
-      if (result.canceled) return null;
-      const asset = result.assets?.[0];
-      if (!asset) return null;
-
-      let payload;
-      if (Platform.OS === 'web' && asset.file) {
-        payload = asset.file;
-      } else {
-        const type = asset.mimeType || (asset.uri.endsWith('.png') ? 'image/png' : 'image/jpeg');
-        const ext  = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg';
-        payload = { uri: asset.uri, name: asset.fileName || `upload.${ext}`, type };
-      }
-
-      setUploadingSlot(slot);
-      try {
-        const { url } = await partnerMenuApi.upload(payload, accessToken);
-        return url;
-      } catch (err) {
-        Alert.alert('Upload failed', err.message || 'Could not upload image');
-        return null;
-      } finally {
-        setUploadingSlot(null);
-      }
+      payload = await pickImage(slot);            // resized + JPEG-normalised
     } catch (err) {
-      Alert.alert('Could not open picker', err.message || String(err));
+      if (err?.setup) {
+        Alert.alert('Setup required', 'Run: npx expo install expo-image-picker');
+      } else if (err?.permission) {
+        Alert.alert('Permission needed', 'Grant photo/camera access from system settings to add an image.');
+      } else {
+        Alert.alert('Could not open picker', err?.message || String(err));
+      }
       return null;
+    }
+    if (!payload) return null;                     // user cancelled
+
+    setUploadingSlot(slot);
+    try {
+      const { url } = await partnerMenuApi.upload(payload, accessToken);
+      return url;
+    } catch (err) {
+      Alert.alert('Upload failed', err.message || 'Could not upload image');
+      return null;
+    } finally {
+      setUploadingSlot(null);
     }
   }
 
@@ -228,7 +208,7 @@ export default function PartnerBrandingScreen({ navigation }) {
 
         {/* Cover / banner */}
         <Text style={styles.label}>Cover photo</Text>
-        <Text style={styles.hint}>Wide banner shown at the top of your kitchen page.</Text>
+        <Text style={styles.hint}>Wide banner at the top of your kitchen page. Recommended {IMAGE_TARGETS.cover.recommend} · JPG/PNG/WebP.</Text>
         <View style={styles.bannerWrap}>
           {bannerImageUrl ? (
             <Image source={{ uri: resolveImageUrl(bannerImageUrl) }} style={styles.banner} resizeMode="cover" />
@@ -255,7 +235,7 @@ export default function PartnerBrandingScreen({ navigation }) {
 
         {/* Profile photo */}
         <Text style={[styles.label, { marginTop: space.lg }]}>Profile photo</Text>
-        <Text style={styles.hint}>Square logo or kitchen photo shown on the Home feed card.</Text>
+        <Text style={styles.hint}>Square logo or kitchen photo on the Home feed card. Recommended {IMAGE_TARGETS.profile.recommend}.</Text>
         <View style={styles.profileRow}>
           <View style={styles.profileWrap}>
             {profileImageUrl ? (
