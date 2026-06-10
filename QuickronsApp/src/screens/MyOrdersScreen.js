@@ -141,10 +141,10 @@ function OrderCard({ order, onPress }) {
         </View>
       </View>
 
-      {/* Kitchen name */}
-      {order.partner?.businessName ? (
+      {/* Kitchen name — backend returns partner.brand */}
+      {order.partner?.brand || order.partner?.businessName ? (
         <Text style={styles.kitchenName} numberOfLines={1}>
-          {order.partner.businessName}
+          {order.partner.brand || order.partner.businessName}
         </Text>
       ) : null}
 
@@ -155,6 +155,20 @@ function OrderCard({ order, onPress }) {
           {moreCount > 0 ? ` +${moreCount} more` : ''}
         </Text>
       )}
+
+      {/* Payment — surface UPI/online payment status (esp. PENDING) */}
+      {order.paymentMethod && order.paymentMethod !== 'COD' && !['CANCELLED', 'FAILED'].includes(order.status) ? (
+        <View style={styles.payLine}>
+          <Ionicons
+            name={order.paymentStatus === 'CAPTURED' ? 'checkmark-circle' : 'time-outline'}
+            size={13}
+            color={order.paymentStatus === 'CAPTURED' ? colors.success : colors.accent}
+          />
+          <Text style={styles.payLineTxt}>
+            {order.paymentMethod} · {order.paymentStatus === 'CAPTURED' ? 'Paid' : 'Payment pending verification'}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Footer */}
       <View style={styles.cardFoot}>
@@ -208,6 +222,8 @@ const styles = StyleSheet.create({
   statusTxtBadge: { fontSize: 12, fontWeight: '700' },
   kitchenName:  { fontSize: 13, fontWeight: '700', color: colors.ink, marginTop: 6 },
   itemsPreview: { fontSize: 12, color: colors.inkSoft, marginTop: 3 },
+  payLine:      { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  payLineTxt:   { fontSize: 12, color: colors.inkSoft, fontWeight: '600' },
   cardFoot: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border,

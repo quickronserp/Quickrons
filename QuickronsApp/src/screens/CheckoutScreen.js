@@ -11,16 +11,17 @@ import { useAuth } from '../state/AuthContext';
 import { addressesApi, ordersApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
 
+// UPI-first: UPI is the primary, recommended method; COD remains available.
 const PAY_METHODS = [
-  { id: 'COD', label: 'Cash on delivery', icon: 'cash',       desc: 'Pay the rider on arrival' },
-  { id: 'UPI', label: 'UPI',              icon: 'qr-code',     desc: 'Pay now, enter the reference' },
+  { id: 'UPI', label: 'UPI',              icon: 'qr-code', desc: 'Pay now, enter the reference', recommended: true },
+  { id: 'COD', label: 'Cash on delivery', icon: 'cash',    desc: 'Pay the rider on arrival' },
 ];
 // The Quickrons UPI handle customers pay to. Configurable per-deploy; Razorpay
 // auto-collect arrives in a later sprint (we never auto-confirm UPI in the MVP).
 const UPI_VPA = process.env.EXPO_PUBLIC_UPI_VPA || 'quickrons@upi';
 
 export default function CheckoutScreen({ navigation }) {
-  const [pay,      setPay]      = useState('COD');
+  const [pay,      setPay]      = useState('UPI');
   const [upiRef,   setUpiRef]   = useState('');
   const [placing,  setPlacing]  = useState(false);
   const [selectedAddr, setSelectedAddr] = useState(null);
@@ -159,7 +160,14 @@ export default function CheckoutScreen({ navigation }) {
               color={pay === m.id ? colors.brand : colors.inkSoft}
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{m.label}</Text>
+              <View style={styles.payTitleRow}>
+                <Text style={styles.cardTitle}>{m.label}</Text>
+                {m.recommended ? (
+                  <View style={styles.recoBadge}>
+                    <Text style={styles.recoBadgeTxt}>Recommended</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={styles.cardDesc}>{m.desc}</Text>
             </View>
             <View style={[styles.radio, pay === m.id && styles.radioActive]}>
@@ -272,6 +280,12 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, marginBottom: 8,
   },
   payRowActive: { borderColor: colors.brand, backgroundColor: colors.brandTint },
+  payTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recoBadge: {
+    backgroundColor: colors.success + '1A', borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  recoBadgeTxt: { fontSize: 10, fontWeight: '800', color: colors.success },
   upiPanel: {
     backgroundColor: colors.bg, borderRadius: radii.md, padding: space.md,
     borderWidth: 1, borderColor: colors.brand + '40', marginBottom: 8, gap: 10,
