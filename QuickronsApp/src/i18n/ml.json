@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Quickrons",
-    "tagline": "നാടൻ രുചി, വേഗത്തിൽ"
+    "tagline": "For Smart People"
   },
   "auth": {
     "login_title": "ക്വിക്ക്റോൺസിലേക്ക് സ്വാഗതം",
@@ -31,7 +31,7 @@
       "preorder": "മുൻകൂട്ടി ഓർഡർ",
       "preorder_desc": "സമയം നിശ്ചയിച്ച് ഓർഡർ ചെയ്യൂ"
     },
-    "filters": { "all": "എല്ലാം", "forra": "ഫോറ ഫുഡ്സ്", "home": "വീട്ടു രുചി", "hotel": "റെസ്റ്റോറന്റ്", "caterer": "കാറ്ററിങ്" },
+    "filters": { "all": "എല്ലാം", "forra": "ഫോറ കിച്ചൻ", "grocery": "ഗ്രോസറി", "home": "ഹോം കിച്ചൻ", "hotel": "റെസ്റ്റോറന്റ്", "caterer": "കാറ്ററിങ്" },
     "section_kitchens": "{{count}} അടുക്കളകൾ നിങ്ങളെ കാത്തിരിക്കുന്നു",
     "forra_spotlight_tag": "ഞങ്ങളുടെ പ്രധാന അടുക്കള",
     "forra_spotlight_title": "ഫോറ ഫുഡ്സ്",

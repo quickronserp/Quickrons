@@ -1,7 +1,7 @@
 {
   "app": {
     "name": "Quickrons",
-    "tagline": "असली मालाबार खाना, तेज़ी से"
+    "tagline": "For Smart People"
   },
   "auth": {
     "login_title": "Quickrons में आपका स्वागत है",
@@ -31,7 +31,7 @@
       "preorder": "प्री-ऑर्डर",
       "preorder_desc": "बेहतरीन रसोई से शेड्यूल करें"
     },
-    "filters": { "all": "सभी", "forra": "फ़ोर्रा फ़ूड्स", "home": "घर का बना", "hotel": "रेस्तरां", "caterer": "कैटरिंग" },
+    "filters": { "all": "सभी", "forra": "फ़ोर्रा किचन", "grocery": "ग्रोसरी", "home": "होम किचन", "hotel": "रेस्तरां", "caterer": "कैटरिंग" },
     "section_kitchens": "आपके पास {{count}} रसोई डिलीवरी कर रही हैं",
     "forra_spotlight_tag": "हमारा फ़्लैगशिप",
     "forra_spotlight_title": "Forra Foods",

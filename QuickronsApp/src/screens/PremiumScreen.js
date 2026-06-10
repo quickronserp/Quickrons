@@ -7,7 +7,7 @@ import { colors, radii, space } from '../theme';
 
 const PERKS = [
   { icon: 'rocket', title: 'Free delivery', desc: 'On every order. Including Curated kitchens.' },
-  { icon: 'pricetag', title: '8% off Forra Foods', desc: 'On every Forra signature dish, every day.' },
+  { icon: 'pricetag', title: '8% off Forra Kitchen', desc: 'On every Forra signature dish, every day.' },
   { icon: 'star', title: 'Priority slots', desc: 'Lock in 30-min Quick Today windows ahead of others.' },
   { icon: 'gift', title: 'Member-only drops', desc: 'Hotel chef specials and limited home-maker batches.' },
 ];
@@ -55,7 +55,7 @@ export default function PremiumScreen({ navigation }) {
             <Text style={styles.calcTitle}>You save ₹400+ per month</Text>
             <Text style={styles.calcDesc}>
               Average Plus member orders 11 times per month. Free delivery (₹39 × 11) plus
-              8% off Forra Foods (~₹120) easily covers the membership.
+              8% off Forra Kitchen (~₹120) easily covers the membership.
             </Text>
           </View>
         </View>

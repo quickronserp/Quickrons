@@ -43,16 +43,17 @@ export const text = {
 };
 
 export const segmentMeta = {
-  forra:     { label: 'Forra Foods',    color: colors.forra,     icon: 'flame' },
-  homeMaker: { label: 'Home Made',      color: colors.homeMaker, icon: 'home' },
+  forra:     { label: 'Forra Kitchen',  color: colors.forra,     icon: 'flame' },
+  grocery:   { label: 'Grocery',        color: colors.success,   icon: 'basket' },
+  homeMaker: { label: 'Home Kitchen',   color: colors.homeMaker, icon: 'home' },
   // Internal key remains `hotel` to avoid churning the HomeScreen filter ids;
   // the user-facing label is "Restaurant".
   hotel:     { label: 'Restaurant',     color: colors.hotel,     icon: 'business' },
   caterer:   { label: 'Caterer',        color: colors.caterer,   icon: 'people' },
   // backend businessType aliases
-  FORRA_KITCHEN:  { label: 'Forra Foods', color: colors.forra,     icon: 'flame' },
-  FORRA_SUPPLIER: { label: 'Forra Foods', color: colors.forra,     icon: 'flame' },
-  HOME_MAKER:    { label: 'Home Made',   color: colors.homeMaker, icon: 'home' },
+  FORRA_KITCHEN:  { label: 'Forra Kitchen', color: colors.forra,     icon: 'flame' },
+  FORRA_SUPPLIER: { label: 'Forra Kitchen', color: colors.forra,     icon: 'flame' },
+  HOME_MAKER:    { label: 'Home Kitchen', color: colors.homeMaker, icon: 'home' },
   HOTEL:         { label: 'Restaurant',  color: colors.hotel,     icon: 'business' },
   RESTAURANT:    { label: 'Restaurant',  color: colors.hotel,     icon: 'business' },
   CATERER:       { label: 'Caterer',     color: colors.caterer,   icon: 'people' },

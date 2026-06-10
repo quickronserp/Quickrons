@@ -104,10 +104,11 @@ const PARTNERS = [
   },
   {
     phone:         '9876543223',
-    brand:         'Forra Foods',
-    ownerName:     'Forra Foods Manager',
-    // FORRA_SUPPLIER positions this partner as the Quickrons flagship —
-    // healthy Kerala foods, high-protein bowls, gym/wellness nutrition.
+    brand:         'Forra Kitchen',
+    ownerName:     'Forra Kitchen Manager',
+    // FORRA_SUPPLIER positions this partner as the Quickrons flagship food brand —
+    // healthy Kerala foods, high-protein bowls, gym/wellness nutrition. (Grocery —
+    // Forra packaged goods like coconut oil/spices — is a separate future category.)
     category:      'FORRA_SUPPLIER',
     commissionBps: 1200,
     fssaiNumber:   'FSSAI-DEV-FORRA',

@@ -41,7 +41,9 @@ const TYPE_TO_SEGMENT = {
   CATERER:        'caterer',
 };
 
-const FILTER_IDS = ['all', 'forra', 'homeMaker', 'hotel', 'caterer'];
+// Customer-facing categories: Forra Kitchen (flagship), Grocery (Forra packaged
+// goods — future), Home Kitchen, Restaurants. Catering is hidden for now.
+const FILTER_IDS = ['all', 'forra', 'grocery', 'homeMaker', 'hotel'];
 
 // Normalise a backend kitchen into the shape PartnerCard + HomeScreen expect.
 // The live backend (kitchens route) returns: brand, category, zone{}, tagline,
@@ -183,8 +185,16 @@ export default function HomeScreen({ navigation }) {
             </View>
           ) : filtered.length === 0 ? (
             <View style={styles.center}>
-              <Ionicons name="restaurant-outline" size={36} color={colors.inkMuted} />
-              <Text style={styles.statusTxt}>No kitchens available right now</Text>
+              <Ionicons
+                name={filter === 'grocery' ? 'basket-outline' : 'restaurant-outline'}
+                size={36}
+                color={colors.inkMuted}
+              />
+              <Text style={styles.statusTxt}>
+                {filter === 'grocery'
+                  ? 'Grocery is coming soon — Forra coconut oil, sprouted ragi, spices & more.'
+                  : 'No kitchens available right now'}
+              </Text>
             </View>
           ) : (
             <>
