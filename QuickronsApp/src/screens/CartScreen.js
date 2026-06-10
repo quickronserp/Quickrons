@@ -6,7 +6,7 @@ import { useCart } from '../state/CartContext';
 import { colors, radii, space } from '../theme';
 
 export default function CartScreen({ navigation }) {
-  const { items, updateQty, subtotal, deliveryFee, platformFee, gst, total, isPlus } = useCart();
+  const { items, updateQty, subtotal, deliveryFee, platformFee, gst, total } = useCart();
   const canGoBack = navigation.canGoBack();
 
   if (items.length === 0) {
@@ -58,11 +58,7 @@ export default function CartScreen({ navigation }) {
 
         <View style={styles.summary}>
           <SummaryRow label="Item subtotal" value={`₹${subtotal}`} />
-          <SummaryRow
-            label={`Delivery fee${isPlus ? ' (Plus)' : ''}`}
-            value={isPlus ? 'FREE' : `₹${deliveryFee}`}
-            valueColor={isPlus ? colors.success : colors.ink}
-          />
+          <SummaryRow label="Delivery fee" value={`₹${deliveryFee}`} />
           <SummaryRow label="Platform fee" value={`₹${platformFee}`} />
           <SummaryRow label="GST (5%)" value={`₹${gst}`} />
           <View style={styles.totalRow}>

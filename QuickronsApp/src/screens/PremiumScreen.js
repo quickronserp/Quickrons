@@ -23,6 +23,9 @@ export default function PremiumScreen({ navigation }) {
             <Ionicons name="close" size={22} color="#fff" />
           </Pressable>
           <Ionicons name="diamond" size={48} color={colors.accent} />
+          <View style={styles.soonTag}>
+            <Text style={styles.soonTagTxt}>LAUNCHING SOON</Text>
+          </View>
           <Text style={styles.title}>Quickrons Plus</Text>
           <Text style={styles.subtitle}>
             Premium food delivered, with the perks of a member.
@@ -62,7 +65,7 @@ export default function PremiumScreen({ navigation }) {
         onPress={() => { setIsPlus(true); navigation.goBack(); }}
         style={[styles.cta, isPlus && { backgroundColor: colors.success }]}>
         <Text style={styles.ctaTxt}>
-          {isPlus ? 'You are a Plus member' : 'Start 7-day free trial'}
+          {isPlus ? "You're on the Plus waitlist ✓" : 'Join the Plus waitlist'}
         </Text>
       </Pressable>
     </SafeAreaView>
@@ -72,6 +75,11 @@ export default function PremiumScreen({ navigation }) {
 const styles = StyleSheet.create({
   heroPad: { padding: space.xl, alignItems: 'flex-start', position: 'relative' },
   backBtn: { position: 'absolute', top: 12, right: 12, padding: 6 },
+  soonTag: {
+    backgroundColor: colors.accent + '22', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4, marginTop: 12,
+  },
+  soonTagTxt: { color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1 },
   title: { color: '#fff', fontSize: 32, fontWeight: '800', marginTop: 12 },
   subtitle: { color: '#CBD5E1', fontSize: 15, marginTop: 6 },
   body: {

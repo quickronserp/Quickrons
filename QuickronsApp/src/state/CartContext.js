@@ -37,7 +37,12 @@ export function CartProvider({ children }) {
     [items]
   );
 
-  const deliveryFeePaise = items.length === 0 ? 0 : (isPlus ? 0 : 3900);
+  // IMPORTANT: these must mirror the backend's server-authoritative fee schedule
+  // (orders.js computeFees: delivery ₹39, packaging ₹9, GST 5%) EXACTLY, so the
+  // total shown here equals the amount the backend charges. Plus does NOT zero
+  // the delivery fee — there is no backend Plus entitlement yet, and discounting
+  // client-side would charge the customer ₹39 more than displayed.
+  const deliveryFeePaise = items.length === 0 ? 0 : 3900;
   const platformFeePaise = items.length === 0 ? 0 : 900;
   const gstPaise        = Math.round(subtotalPaise * 0.05);
   const totalPaise      = subtotalPaise + deliveryFeePaise + platformFeePaise + gstPaise;

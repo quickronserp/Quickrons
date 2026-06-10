@@ -60,7 +60,7 @@ export default function ProfileScreen({ navigation }) {
           {isPlus && (
             <View style={styles.plusPill}>
               <Ionicons name="diamond" size={12} color={colors.accent} />
-              <Text style={styles.plusTxt}>Quickrons Plus</Text>
+              <Text style={styles.plusTxt}>Plus waitlist</Text>
             </View>
           )}
         </View>
@@ -75,7 +75,7 @@ export default function ProfileScreen({ navigation }) {
         <Action
           icon="diamond"
           color={colors.accent}
-          title={isPlus ? 'Manage Plus membership' : 'Try Quickrons Plus'}
+          title={isPlus ? 'Quickrons Plus — on waitlist' : 'Try Quickrons Plus'}
           onPress={() => navigation.navigate('Premium')}
         />
         <Action
