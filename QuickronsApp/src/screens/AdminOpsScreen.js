@@ -142,6 +142,38 @@ export default function AdminOpsScreen({ navigation }) {
     ]);
   }
 
+  async function markPaid(id) {
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      await adminApi.markPaid(id, accessToken);
+      await fetchData(true);
+    } catch (e) {
+      Alert.alert('Could not mark paid', e.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
+  }
+
+  function rejectPayment(id) {
+    Alert.alert('Reject payment?', 'Mark this payment as failed. The order is kept for follow-up.', [
+      { text: 'Back', style: 'cancel' },
+      {
+        text: 'Reject payment', style: 'destructive',
+        onPress: async () => {
+          setActionLoading(prev => ({ ...prev, [id]: true }));
+          try {
+            await adminApi.rejectPayment(id, 'Payment not received', accessToken);
+            await fetchData(true);
+          } catch (e) {
+            Alert.alert('Could not reject', e.message);
+          } finally {
+            setActionLoading(prev => ({ ...prev, [id]: false }));
+          }
+        },
+      },
+    ]);
+  }
+
   // ── Render helpers ──────────────────────────────────────────────────────────
 
   function renderAnalytics() {
@@ -275,6 +307,35 @@ export default function AdminOpsScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
+
+              {/* UTR / reference for online payments */}
+              {o.paymentMethod !== 'COD' && o.paymentRefId ? (
+                <Text style={styles.utrTxt}>Ref / UTR: {o.paymentRefId}</Text>
+              ) : null}
+
+              {/* Manual payment verification for pending online payments */}
+              {o.paymentMethod !== 'COD' && o.paymentStatus === 'PENDING' ? (
+                <View style={styles.payActions}>
+                  <Pressable
+                    onPress={() => markPaid(o.id)}
+                    disabled={busy}
+                    style={[styles.payActionBtn, styles.markPaidBtn]}
+                  >
+                    {busy
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <><Ionicons name="checkmark-circle" size={15} color="#fff" /><Text style={styles.markPaidTxt}>Mark Paid</Text></>}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => rejectPayment(o.id)}
+                    disabled={busy}
+                    style={[styles.payActionBtn, styles.rejectPayBtn]}
+                  >
+                    <Ionicons name="close-circle" size={15} color={colors.danger} />
+                    <Text style={styles.rejectPayTxt}>Reject</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
               {!isTerminal && (
                 <Pressable
                   onPress={() => cancelOrder(o.id)}
@@ -554,6 +615,16 @@ const styles = StyleSheet.create({
   payRowTxt: { fontSize: 12, color: colors.inkMuted, flex: 1 },
   payPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   payPillTxt: { fontSize: 10, fontWeight: '800' },
+  utrTxt: { fontSize: 12, color: colors.inkSoft, marginTop: 4, fontWeight: '600' },
+  payActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  payActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    paddingVertical: 8, borderRadius: radii.sm,
+  },
+  markPaidBtn: { backgroundColor: colors.success },
+  markPaidTxt: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  rejectPayBtn: { borderWidth: 1, borderColor: colors.danger, backgroundColor: colors.bg },
+  rejectPayTxt: { color: colors.danger, fontWeight: '800', fontSize: 13 },
   statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   statusPillTxt: { fontSize: 10, fontWeight: '800' },
   cancelBtn: {

@@ -296,6 +296,10 @@ export const adminApi = {
     request('/api/v1/admin/riders',    { token }),
   cancelOrder: (id, reason, token) =>
     request(`/api/v1/admin/orders/${id}/cancel`, { method: 'POST', body: { reason }, token }),
+  markPaid: (id, token) =>
+    request(`/api/v1/admin/orders/${id}/payment/mark-paid`, { method: 'POST', token }),
+  rejectPayment: (id, reason, token) =>
+    request(`/api/v1/admin/orders/${id}/payment/reject`, { method: 'POST', body: { reason }, token }),
   stuckOrders: (token) =>
     request('/api/v1/admin/orders/stuck', { token }),
   ratings: (token) =>

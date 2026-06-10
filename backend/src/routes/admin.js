@@ -140,6 +140,7 @@ router.get('/orders', asyncH(async (req, res) => {
         totalPaise:    true,
         paymentMethod: true,
         paymentStatus: true,
+        paymentRefId:  true,   // UPI UTR / gateway ref — admin verifies against this
         createdAt:     true,
         deliveredAt:   true,
         cancelledBy:   true,
@@ -150,6 +151,82 @@ router.get('/orders', asyncH(async (req, res) => {
   ]);
 
   res.json({ orders, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+}));
+
+// ─── Payment verification (manual MVP — no PSP webhook yet) ──────────────────
+//
+// UPI/online orders are created paymentStatus=PENDING. An operator verifies the
+// money landed (against the UTR the customer entered) and marks it paid, or
+// rejects it. We NEVER auto-capture from the client.
+//
+//   POST /orders/:id/payment/mark-paid   → CAPTURED + paymentCapturedAt
+//   POST /orders/:id/payment/reject      → FAILED   (order is NOT deleted)
+
+async function loadOrderForPayment(idOrNumber) {
+  const order = await prisma.order.findFirst({
+    where:  { OR: [{ id: idOrNumber }, { orderNumber: idOrNumber }] },
+    select: { id: true, status: true, paymentMethod: true, paymentStatus: true },
+  });
+  if (!order) throw NotFound('Order not found');
+  return order;
+}
+
+router.post('/orders/:id/payment/mark-paid', asyncH(async (req, res) => {
+  const order = await loadOrderForPayment(req.params.id);
+  if (order.paymentMethod === 'COD') {
+    throw BadRequest('COD is collected at delivery — there is nothing to mark paid here');
+  }
+  if (order.paymentStatus === 'CAPTURED') {
+    throw BadRequest('Payment is already marked paid');
+  }
+
+  const now = new Date();
+  const [updated] = await prisma.$transaction([
+    prisma.order.update({
+      where:   { id: order.id },
+      data:    { paymentStatus: 'CAPTURED', paymentCapturedAt: now },
+      include: ADMIN_ORDER_INCLUDE,
+    }),
+    prisma.orderEvent.create({
+      data: {
+        orderId:    order.id,
+        fromStatus: order.status,
+        toStatus:   order.status,   // FSM status unchanged; this is a payment event
+        actorRole:  'ADMIN',
+        note:       'Payment verified and marked paid by admin',
+      },
+    }),
+  ]);
+  res.json({ order: updated });
+}));
+
+router.post('/orders/:id/payment/reject', asyncH(async (req, res) => {
+  const { reason } = req.body || {};
+  const order = await loadOrderForPayment(req.params.id);
+  if (order.paymentMethod === 'COD') {
+    throw BadRequest('COD payments are not verified here');
+  }
+  if (order.paymentStatus === 'CAPTURED') {
+    throw BadRequest('Payment is already captured — issue a refund instead of rejecting');
+  }
+
+  const [updated] = await prisma.$transaction([
+    prisma.order.update({
+      where:   { id: order.id },
+      data:    { paymentStatus: 'FAILED' },
+      include: ADMIN_ORDER_INCLUDE,
+    }),
+    prisma.orderEvent.create({
+      data: {
+        orderId:    order.id,
+        fromStatus: order.status,
+        toStatus:   order.status,
+        actorRole:  'ADMIN',
+        note:       reason ? `Payment rejected by admin: ${String(reason).trim()}` : 'Payment rejected by admin',
+      },
+    }),
+  ]);
+  res.json({ order: updated });
 }));
 
 // ─── GET /orders/stuck ────────────────────────────────────────────────────────
@@ -190,6 +267,7 @@ router.get('/orders/stuck', asyncH(async (_req, res) => {
     totalPaise:       true,
     paymentMethod:    true,
     paymentStatus:    true,
+    paymentRefId:     true,
     createdAt:        true,
     pickedUpAt:       true,
     partner:          { select: { id: true, brand: true } },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
-  TextInput,
+  TextInput, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +16,13 @@ const PAY_METHODS = [
   { id: 'UPI', label: 'UPI',              icon: 'qr-code', desc: 'Pay now, enter the reference', recommended: true },
   { id: 'COD', label: 'Cash on delivery', icon: 'cash',    desc: 'Pay the rider on arrival' },
 ];
-// The Quickrons UPI handle customers pay to. Configurable per-deploy; Razorpay
-// auto-collect arrives in a later sprint (we never auto-confirm UPI in the MVP).
-const UPI_VPA = process.env.EXPO_PUBLIC_UPI_VPA || 'quickrons@upi';
+// Company UPI details customers pay to. Set per-deploy via EXPO_PUBLIC_UPI_*.
+// Razorpay/PSP auto-collect arrives later; until then we never auto-confirm UPI.
+const UPI_VPA    = process.env.EXPO_PUBLIC_UPI_ID || process.env.EXPO_PUBLIC_UPI_VPA || 'quickrons@upi';
+const UPI_NAME   = process.env.EXPO_PUBLIC_UPI_NAME || 'Quickrons';
+const UPI_QR_URL = process.env.EXPO_PUBLIC_UPI_QR_URL || null;
+// True when no real UPI ID is configured — surfaces a "demo" marker in the UI.
+const UPI_IS_DEMO = !(process.env.EXPO_PUBLIC_UPI_ID || process.env.EXPO_PUBLIC_UPI_VPA);
 
 export default function CheckoutScreen({ navigation }) {
   const [pay,      setPay]      = useState('UPI');
@@ -176,33 +180,56 @@ export default function CheckoutScreen({ navigation }) {
           </Pressable>
         ))}
 
-        {/* UPI pay-now panel — QR placeholder + reference entry */}
+        {/* UPI pay-now panel — amount + QR + UPI ID + reference entry */}
         {pay === 'UPI' && (
           <View style={styles.upiPanel}>
-            <View style={styles.qrPlaceholder}>
-              <Ionicons name="qr-code" size={64} color={colors.ink} />
-              <Text style={styles.qrHint}>Scan to pay (QR coming soon)</Text>
+            {/* Exact payable amount */}
+            <View style={styles.upiAmountRow}>
+              <Text style={styles.upiAmountLabel}>Pay exactly</Text>
+              <Text style={styles.upiAmount}>₹{total}</Text>
             </View>
+
+            {/* QR — real image when configured, else a clearly-marked demo box */}
+            {UPI_QR_URL ? (
+              <View style={styles.qrWrap}>
+                <Image source={{ uri: UPI_QR_URL }} style={styles.qrImg} resizeMode="contain" />
+                <Text style={styles.qrHint}>Scan with any UPI app</Text>
+              </View>
+            ) : (
+              <View style={styles.qrPlaceholder}>
+                <Ionicons name="qr-code" size={64} color={colors.ink} />
+                <Text style={styles.qrHint}>
+                  {UPI_IS_DEMO ? 'Demo QR — set EXPO_PUBLIC_UPI_QR_URL' : 'Scan to pay'}
+                </Text>
+              </View>
+            )}
+
+            {/* UPI ID + payee name */}
             <View style={styles.upiVpaRow}>
               <Ionicons name="at" size={16} color={colors.brand} />
               <Text style={styles.upiVpa}>{UPI_VPA}</Text>
             </View>
+            <Text style={styles.upiPayee}>
+              {UPI_NAME}{UPI_IS_DEMO ? '  ·  demo/local' : ''}
+            </Text>
+
             <Text style={styles.upiSteps}>
-              1. Pay ₹{total} to the UPI ID above from any UPI app.{'\n'}
-              2. Enter the reference / UTR number it shows you below.{'\n'}
-              3. We confirm your payment and start your order.
+              1. Scan the QR (or use the UPI ID) in any UPI app.{'\n'}
+              2. Pay exactly ₹{total}.{'\n'}
+              3. Enter the UTR / reference number it shows you.{'\n'}
+              4. Place the order — we verify and start it.
             </Text>
             <TextInput
               style={styles.upiInput}
               value={upiRef}
               onChangeText={t => setUpiRef(t.replace(/[^0-9A-Za-z]/g, '').slice(0, 40))}
-              placeholder="UPI reference / UTR number"
+              placeholder="UTR / reference number"
               placeholderTextColor={colors.inkMuted}
               autoCapitalize="characters"
               autoCorrect={false}
             />
             <Text style={styles.upiNote}>
-              Payment shows as “pending” until we verify it — your order is placed either way.
+              Payment shows as “pending” until Quickrons verifies it — we never auto-confirm.
             </Text>
           </View>
         )}
@@ -242,7 +269,9 @@ export default function CheckoutScreen({ navigation }) {
           <ActivityIndicator color="#fff" />
         ) : (
           <>
-            <Text style={styles.ctaTxt}>Place order — ₹{total}</Text>
+            <Text style={styles.ctaTxt}>
+              {pay === 'UPI' ? `I've paid — place order · ₹${total}` : `Place order — ₹${total}`}
+            </Text>
             <Ionicons name="arrow-forward" size={18} color="#fff" />
           </>
         )}
@@ -295,7 +324,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgAlt, borderRadius: radii.md, paddingVertical: 24,
     borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed',
   },
+  qrWrap: { alignItems: 'center', gap: 8, paddingVertical: 8 },
+  qrImg: { width: 200, height: 200, borderRadius: radii.sm, backgroundColor: '#fff' },
   qrHint: { fontSize: 11, color: colors.inkMuted, fontWeight: '600' },
+  upiAmountRow: {
+    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+  },
+  upiAmountLabel: { fontSize: 13, color: colors.inkSoft, fontWeight: '700' },
+  upiAmount: { fontSize: 24, fontWeight: '900', color: colors.brand },
+  upiPayee: { fontSize: 12, color: colors.inkSoft, textAlign: 'center', marginTop: -4 },
   upiVpaRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
     backgroundColor: colors.brandTint, borderRadius: 999, paddingVertical: 8,
