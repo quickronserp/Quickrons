@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 
 const PERKS = [
@@ -19,7 +20,7 @@ export default function PremiumScreen({ navigation }) {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.ink }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
         <View style={styles.heroPad}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Pressable onPress={() => goHomeOrBack(navigation)} style={styles.backBtn}>
             <Ionicons name="close" size={22} color="#fff" />
           </Pressable>
           <Ionicons name="diamond" size={48} color={colors.accent} />
@@ -62,7 +63,7 @@ export default function PremiumScreen({ navigation }) {
       </ScrollView>
 
       <Pressable
-        onPress={() => { setIsPlus(true); navigation.goBack(); }}
+        onPress={() => { setIsPlus(true); goHomeOrBack(navigation); }}
         style={[styles.cta, isPlus && { backgroundColor: colors.success }]}>
         <Text style={styles.ctaTxt}>
           {isPlus ? "You're on the Plus waitlist ✓" : 'Join the Plus waitlist'}

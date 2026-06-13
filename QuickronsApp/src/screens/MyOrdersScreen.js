@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { ordersApi } from '../lib/api';
 import { useAuth } from '../state/AuthContext';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 
 const STATUS_LABEL = {
@@ -73,7 +74,7 @@ export default function MyOrdersScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={{ padding: 8 }}>
+        <Pressable onPress={() => goHomeOrBack(navigation)} style={{ padding: 8 }}>
           <Ionicons name="arrow-back" size={20} color={colors.ink} />
         </Pressable>
         <Text style={styles.title}>My orders</Text>
