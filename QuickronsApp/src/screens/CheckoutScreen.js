@@ -11,6 +11,7 @@ import { useAuth } from '../state/AuthContext';
 import { addressesApi, ordersApi } from '../lib/api';
 import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
+import { layout } from '../lib/layout';
 
 // Shown inline (not via Alert) when the user taps "place order" on UPI without
 // a reference — RN Web Alert is easy to miss and reads as a dead-end.
@@ -103,6 +104,7 @@ export default function CheckoutScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
+     <View style={layout.screen}>
       <View style={styles.header}>
         <Pressable onPress={() => goHomeOrBack(navigation)} style={{ padding: 8 }}>
           <Ionicons name="arrow-back" size={20} color={colors.ink} />
@@ -291,6 +293,7 @@ export default function CheckoutScreen({ navigation }) {
           </>
         )}
       </Pressable>
+     </View>
     </SafeAreaView>
   );
 }

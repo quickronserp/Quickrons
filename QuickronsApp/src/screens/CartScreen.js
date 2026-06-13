@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
 import { colors, radii, space } from '../theme';
+import { layout } from '../lib/layout';
 
 export default function CartScreen({ navigation }) {
   const { items, updateQty, subtotal, deliveryFee, platformFee, gst, total } = useCart();
@@ -24,6 +25,7 @@ export default function CartScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
+     <View style={layout.screen}>
       <View style={styles.header}>
         {canGoBack ? (
           <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -78,6 +80,7 @@ export default function CartScreen({ navigation }) {
         <Text style={styles.ctaTxt}>Proceed to checkout</Text>
         <Ionicons name="arrow-forward" size={18} color="#fff" />
       </Pressable>
+     </View>
     </SafeAreaView>
   );
 }

@@ -10,6 +10,7 @@ import { ordersApi } from '../lib/api';
 import { useAuth } from '../state/AuthContext';
 import socketClient from '../lib/socket';
 import { colors, radii, space } from '../theme';
+import { layout } from '../lib/layout';
 
 // ── Status → stage index ───────────────────────────────────────────────────────
 
@@ -348,6 +349,7 @@ export default function TrackingScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+     <View style={layout.screen}>
       <View style={styles.header}>
         <Pressable
           onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('HomeTab')}
@@ -505,6 +507,7 @@ export default function TrackingScreen({ route, navigation }) {
           onSubmitted={() => invalidate.current()}
         />
       )}
+     </View>
     </SafeAreaView>
   );
 }

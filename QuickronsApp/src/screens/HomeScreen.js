@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -7,9 +7,25 @@ import PartnerCard from '../components/PartnerCard';
 import { ZONE } from '../data/mockData';
 import { kitchensApi } from '../lib/api';
 import { colors, radii, space } from '../theme';
+import { layout } from '../lib/layout';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useI18n } from '../i18n';
+
+// Lightweight skeleton placeholder — gives the home a sense of "instant" while
+// the kitchens query resolves, instead of a lone spinner on a blank screen.
+function KitchenSkeleton() {
+  return (
+    <View style={styles.skelCard}>
+      <View style={styles.skelImg} />
+      <View style={{ padding: space.md, gap: 8 }}>
+        <View style={[styles.skelLine, { width: '40%', height: 12 }]} />
+        <View style={[styles.skelLine, { width: '70%', height: 16 }]} />
+        <View style={[styles.skelLine, { width: '55%' }]} />
+      </View>
+    </View>
+  );
+}
 
 // Inline wordmark — avoids an extra component file import
 function QuickronsWordmark() {
@@ -97,6 +113,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+     <View style={layout.screen}>
       {/* Header */}
       <View style={styles.header}>
         {/* Brand wordmark */}
@@ -121,12 +138,33 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.langTxt}>{lang === 'ml' ? 'ML' : 'EN'}</Text>
         </Pressable>
 
+        {/* My orders — real destination (recent order activity) */}
+        <Pressable
+          onPress={() => navigation.navigate('MyOrders')}
+          style={styles.iconBtn}
+          hitSlop={6}>
+          <Ionicons name="receipt-outline" size={20} color={colors.inkSoft} />
+        </Pressable>
+
         <Pressable onPress={() => navigation.navigate('Profile')} style={styles.avatar}>
           <Ionicons name="person" size={16} color="#fff" />
         </Pressable>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Beta hero — brand-forward, beta-safe (no fake discounts) */}
+        <View style={styles.hero}>
+          <View style={styles.heroTagPill}>
+            <Ionicons name="sparkles" size={11} color={colors.brand} />
+            <Text style={styles.heroTagTxt}>For Smart People</Text>
+          </View>
+          <Text style={styles.heroTitle}>
+            {greeting}, {displayName} 👋
+          </Text>
+          <Text style={styles.heroSub}>
+            Fresh, local kitchens in {lang === 'ml' ? ZONE.nameMl : ZONE.name} — ready when you are.
+          </Text>
+        </View>
         {/* Tabs — Ippol vs Pre-order */}
         <View style={[styles.tabs, { marginTop: space.md }]}>
           <Pressable
@@ -171,10 +209,10 @@ export default function HomeScreen({ navigation }) {
         {/* Kitchen list */}
         <View style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
           {isLoading ? (
-            <View style={styles.center}>
-              <ActivityIndicator color={colors.brand} />
-              <Text style={styles.statusTxt}>Loading kitchens…</Text>
-            </View>
+            <>
+              <View style={[styles.skelLine, { width: '50%', marginBottom: space.md }]} />
+              {[0, 1, 2].map(i => <KitchenSkeleton key={i} />)}
+            </>
           ) : isError ? (
             <View style={styles.center}>
               <Ionicons name="cloud-offline-outline" size={36} color={colors.inkMuted} />
@@ -233,6 +271,7 @@ export default function HomeScreen({ navigation }) {
           <Text style={styles.fabTxt}>{t('cart.view_cart')}</Text>
         </Pressable>
       )}
+     </View>
     </SafeAreaView>
   );
 }
@@ -257,10 +296,35 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgAlt, borderWidth: 1, borderColor: colors.border,
   },
   langTxt: { fontSize: 11, fontWeight: '800', color: colors.inkSoft },
+  iconBtn: { padding: 4 },
   avatar: {
     width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // ── Beta hero ──────────────────────────────────────────────────────────────
+  hero: {
+    marginHorizontal: space.lg, marginTop: space.md,
+    backgroundColor: colors.bgWarm, borderRadius: radii.lg,
+    padding: space.lg, borderWidth: 1, borderColor: colors.brandTint,
+  },
+  heroTagPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
+    backgroundColor: colors.bg, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: colors.brandTint,
+  },
+  heroTagTxt: { fontSize: 11, fontWeight: '800', color: colors.brand, letterSpacing: 0.2 },
+  heroTitle: { fontSize: 20, fontWeight: '800', color: colors.ink, marginTop: 10 },
+  heroSub: { fontSize: 13, color: colors.inkSoft, marginTop: 4, lineHeight: 18 },
+
+  // ── Skeletons ────────────────────────────────────────────────────────────────
+  skelCard: {
+    backgroundColor: colors.bg, borderRadius: radii.lg, marginBottom: space.md,
+    overflow: 'hidden', borderWidth: 1, borderColor: colors.border,
+  },
+  skelImg: { width: '100%', height: 148, backgroundColor: colors.bgAlt },
+  skelLine: { height: 13, borderRadius: 6, backgroundColor: colors.bgAlt },
   tabs: { flexDirection: 'row', gap: 10, paddingHorizontal: space.lg },
   tabBtn: {
     flex: 1, padding: space.md, borderRadius: radii.lg,

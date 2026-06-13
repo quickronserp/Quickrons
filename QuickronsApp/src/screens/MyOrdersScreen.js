@@ -7,6 +7,7 @@ import { ordersApi } from '../lib/api';
 import { useAuth } from '../state/AuthContext';
 import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
+import { layout } from '../lib/layout';
 
 const STATUS_LABEL = {
   PLACED:           'Order placed',
@@ -73,6 +74,7 @@ export default function MyOrdersScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
+     <View style={layout.screen}>
       <View style={styles.header}>
         <Pressable onPress={() => goHomeOrBack(navigation)} style={{ padding: 8 }}>
           <Ionicons name="arrow-back" size={20} color={colors.ink} />
@@ -103,6 +105,7 @@ export default function MyOrdersScreen({ navigation }) {
           )}
         />
       )}
+     </View>
     </SafeAreaView>
   );
 }

@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from './src/state/AuthContext';
 import { I18nProvider, useI18n } from './src/i18n';
 
 import HomeScreen              from './src/screens/HomeScreen';
+import SearchScreen            from './src/screens/SearchScreen';
 import PartnerScreen           from './src/screens/PartnerScreen';
 import CartScreen              from './src/screens/CartScreen';
 import CheckoutScreen          from './src/screens/CheckoutScreen';
@@ -69,17 +70,19 @@ function MainTabs() {
         tabBarInactiveTintColor: colors.inkMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         tabBarStyle: { borderTopColor: colors.border, height: 60, paddingTop: 6, paddingBottom: 8 },
-        tabBarIcon: ({ color, size }) => {
+        tabBarIcon: ({ color, size, focused }) => {
           const map = {
-            HomeTab:    'restaurant',
-            CartTab:    'bag',
-            ProfileTab: 'person',
+            HomeTab:    focused ? 'restaurant'   : 'restaurant-outline',
+            SearchTab:  focused ? 'search'       : 'search-outline',
+            CartTab:    focused ? 'bag'          : 'bag-outline',
+            ProfileTab: focused ? 'person'       : 'person-outline',
           };
           return <Ionicons name={map[route.name]} size={size} color={color} />;
         },
       })}
     >
       <Tab.Screen name="HomeTab"    component={HomeStack}    options={{ title: 'Home' }} />
+      <Tab.Screen name="SearchTab"  component={SearchScreen} options={{ title: 'Search' }} />
       <Tab.Screen
         name="CartTab"
         component={CartScreen}

@@ -137,11 +137,26 @@ export const kitchensApi = {
   list: (token) =>
     request('/api/v1/kitchens', { token }),
 
+  // Server-side brand search (used by the Search tab as a fallback /
+  // cross-check; the tab also filters the already-loaded feed client-side
+  // for instant results).
+  search: (q, token) =>
+    request(`/api/v1/kitchens?q=${encodeURIComponent(q)}&limit=20`, { token }),
+
   get: (id, token) =>
     request(`/api/v1/kitchens/${id}`, { token }),
 
   menu: (id, token) =>
     request(`/api/v1/kitchens/${id}/menu`, { token }),
+};
+
+// ─── Global menu / dish search ────────────────────────────────────────────────
+// Backed by GET /api/v1/menu?q= — only active, non-archived dishes from live,
+// KYC-approved kitchens are returned (see backend menu route).
+
+export const menuApi = {
+  search: (q, token) =>
+    request(`/api/v1/menu?q=${encodeURIComponent(q)}&limit=20`, { token }),
 };
 
 // ─── Addresses ────────────────────────────────────────────────────────────────
