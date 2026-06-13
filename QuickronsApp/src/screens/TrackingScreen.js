@@ -57,6 +57,17 @@ function openDeliveryMap(order) {
   );
 }
 
+// Whole minutes from now until an ISO timestamp, or null if absent/past/invalid.
+// Used to surface the kitchen's real "ready by" time when the partner set one,
+// instead of a purely synthetic countdown.
+function minutesUntil(iso) {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const mins = Math.round((t - Date.now()) / 60000);
+  return mins > 0 ? mins : null;
+}
+
 // Timeout-safe fetch — rejects after `ms` milliseconds
 function withTimeout(promise, ms) {
   const ctrl = new AbortController();
@@ -345,7 +356,10 @@ export default function TrackingScreen({ route, navigation }) {
     );
   }
 
-  const etaMins = Math.max(2, 30 - stage * 6);
+  // Prefer the kitchen's real ready estimate when it set one; otherwise fall
+  // back to a stage-based estimate. Either way it's framed as an estimate.
+  const realEta = minutesUntil(order?.estimatedReadyAt ?? order?.estimatedDeliveryAt);
+  const etaMins = realEta != null ? realEta : Math.max(2, 30 - stage * 6);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -381,7 +395,9 @@ export default function TrackingScreen({ route, navigation }) {
         ) : (
           <View style={styles.etaCard}>
             <Text style={styles.etaLabel}>Estimated arrival</Text>
-            <Text style={styles.etaTime}>{etaMins}–{etaMins + 5} min</Text>
+            <Text style={styles.etaTime}>
+              {realEta != null ? `~${etaMins} min` : `${etaMins}–${etaMins + 5} min`}
+            </Text>
             <Text style={styles.etaDesc}>{STAGES[Math.min(stage, STAGES.length - 1)].label}</Text>
           </View>
         )}
@@ -453,7 +469,7 @@ export default function TrackingScreen({ route, navigation }) {
             </View>
             <Pressable onPress={() => openDeliveryMap(order)} style={styles.mapBtn} hitSlop={6}>
               <Ionicons name="navigate" size={16} color={colors.brand} />
-              <Text style={styles.mapBtnTxt}>Map</Text>
+              <Text style={styles.mapBtnTxt}>Open map</Text>
             </Pressable>
           </View>
         ) : null}
