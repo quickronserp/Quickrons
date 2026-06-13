@@ -1,8 +1,13 @@
 // Quickrons launch-blocker regression QA.
 //
 // Drives the live API exactly as the apps do and asserts the launch-blocker
-// invariants (image upload, UPI-first payment + admin verification, COD,
-// delivery-OTP security, privacy, server-authoritative totals, ratings).
+// invariants (image upload, menu item create + remove/archive, UPI-first
+// payment + admin verification, COD, delivery-OTP security, privacy,
+// server-authoritative totals, ratings).
+//
+// Menu removal (R1–R8): a removed item must disappear from the partner menu API
+// AND the customer menu API, must not be orderable, and must not be editable —
+// while past orders keep their own snapshot (history-safe archive).
 //
 //   1. Start the backend:   npm start        (from backend/)
 //   2. Run this harness:     node scripts/qa-launch-blockers.js
@@ -66,6 +71,33 @@ async function uploadFile(token, buf, filename, type) {
   const cmenu = await j(`/api/v1/kitchens/${partnerId}/menu`, { token: cust });
   ok('6b. customer sees dish image', (cmenu.data.items || []).some(i => i.imageUrl === dishUp.data.url));
   const sellable = (cmenu.data.items || []).find(i => i.pricePaise > 0) || cmenu.data.items[0];
+
+  // ── Menu item removal / archive (web-safe Remove flow) ──────────────────────
+  // Create a throwaway dish, confirm it's visible, remove it, then confirm it
+  // vanishes from BOTH the partner list and the customer menu — and that a
+  // customer can no longer order it (history-safe soft delete / archive).
+  const rmCreate = await j('/api/v1/partner/menu', { method: 'POST', token: partner, body: { name: 'QA Remove Me', description: 'to be removed', pricePaise: 9900, category: 'mains', imageUrl: dishUp.data.url } });
+  const rmId = rmCreate.data.item?.id;
+  ok('R1. create QA menu item', rmCreate.status === 201 && !!rmId);
+
+  const partnerBefore = await j('/api/v1/partner/menu', { token: partner });
+  ok('R2. new item shows in partner menu', (partnerBefore.data.items || []).some(i => i.id === rmId && i.active));
+  const custBefore = await j(`/api/v1/kitchens/${partnerId}/menu`, { token: cust });
+  ok('R3. new item shows in customer menu', (custBefore.data.items || []).some(i => i.id === rmId));
+
+  const removed = await j(`/api/v1/partner/menu/${rmId}`, { method: 'DELETE', token: partner });
+  ok('R4. remove/archive returns 200 + archivedAt set', removed.status === 200 && !!removed.data.item.archivedAt && removed.data.item.active === false);
+
+  const partnerAfter = await j('/api/v1/partner/menu', { token: partner });
+  ok('R5. removed item hidden from partner menu API', !(partnerAfter.data.items || []).some(i => i.id === rmId));
+  const custAfter = await j(`/api/v1/kitchens/${partnerId}/menu`, { token: cust });
+  ok('R6. removed item hidden from customer menu API', !(custAfter.data.items || []).some(i => i.id === rmId));
+
+  const orderRemoved = await j('/api/v1/orders', { method: 'POST', token: cust, body: { paymentMethod: 'COD', items: [{ menuItemId: rmId, qty: 1 }] } });
+  ok('R7. removed item not orderable', orderRemoved.status === 400);
+
+  const editRemoved = await j(`/api/v1/partner/menu/${rmId}`, { method: 'PATCH', token: partner, body: { name: 'resurrected' } });
+  ok('R8. removed item cannot be edited (404)', editRemoved.status === 404);
 
   // UPI payment
   const noRef = await j('/api/v1/orders', { method: 'POST', token: cust, body: { paymentMethod: 'UPI', items: [{ menuItemId: sellable.id, qty: 1 }] } });
