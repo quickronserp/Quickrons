@@ -119,14 +119,14 @@ export default function HomeScreen({ navigation }) {
         {/* Brand wordmark */}
         <QuickronsWordmark />
 
-        {/* Location */}
-        <Pressable style={styles.locRow}>
+        {/* Location — single beta zone, so this is a clean static label, not a
+            fake "change location" dropdown (no dead affordance). */}
+        <View style={styles.locRow}>
           <Ionicons name="location" size={12} color={colors.brand} />
           <Text style={styles.loc} numberOfLines={1}>
             {lang === 'ml' ? ZONE.nameMl : ZONE.name}
           </Text>
-          <Ionicons name="chevron-down" size={12} color={colors.inkMuted} />
-        </Pressable>
+        </View>
 
         <View style={{ flex: 1 }} />
 
@@ -258,7 +258,9 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        <View style={{ height: 100 }} />
+        {/* Bottom clearance: only reserve room for the floating cart when it's
+            actually shown — avoids a large blank gap on an empty cart. */}
+        <View style={{ height: cartCount > 0 ? 96 : space.lg }} />
       </ScrollView>
 
       {/* Floating cart */}
