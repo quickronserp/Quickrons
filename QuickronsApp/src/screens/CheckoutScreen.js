@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
-  TextInput, Image,
+  TextInput, Image, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,7 +113,13 @@ export default function CheckoutScreen({ navigation }) {
         <View style={{ width: 30 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 120 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: space.lg, paddingBottom: space.xl }}>
         {/* Delivery address */}
         <Text style={styles.section}>Deliver to</Text>
 
@@ -278,21 +284,27 @@ export default function CheckoutScreen({ navigation }) {
         </View>
       </ScrollView>
 
-      <Pressable
-        onPress={placeOrder}
-        disabled={placing}
-        style={[styles.cta, placing && { opacity: 0.7 }]}>
-        {placing ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <>
-            <Text style={styles.ctaTxt}>
-              {pay === 'UPI' ? `I've paid — place order · ₹${total}` : `Place order — ₹${total}`}
-            </Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </>
-        )}
-      </Pressable>
+      {/* Footer is a flex sibling (not absolute) inside the KeyboardAvoidingView,
+          so the sticky CTA rises with the keyboard and never covers the UPI
+          reference input or its inline error. */}
+      <View style={styles.footer}>
+        <Pressable
+          onPress={placeOrder}
+          disabled={placing}
+          style={[styles.cta, placing && { opacity: 0.7 }]}>
+          {placing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.ctaTxt}>
+                {pay === 'UPI' ? `I've paid — place order · ₹${total}` : `Place order — ₹${total}`}
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </>
+          )}
+        </Pressable>
+      </View>
+      </KeyboardAvoidingView>
      </View>
     </SafeAreaView>
   );
@@ -390,8 +402,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success + '12', padding: space.md, borderRadius: radii.md, marginTop: 16,
   },
   trustTxt: { flex: 1, fontSize: 12, color: colors.success, fontWeight: '600', lineHeight: 18 },
+  footer: {
+    paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.md,
+    backgroundColor: colors.bgAlt, borderTopWidth: 1, borderTopColor: colors.border,
+  },
   cta: {
-    position: 'absolute', bottom: 16, left: 16, right: 16,
     backgroundColor: colors.brand, borderRadius: radii.lg, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     shadowColor: colors.brand, shadowOpacity: 0.4, shadowRadius: 14, elevation: 6,
