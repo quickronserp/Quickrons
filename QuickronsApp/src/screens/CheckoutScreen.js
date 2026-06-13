@@ -9,7 +9,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { addressesApi, ordersApi } from '../lib/api';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
+
+// Shown inline (not via Alert) when the user taps "place order" on UPI without
+// a reference — RN Web Alert is easy to miss and reads as a dead-end.
+const UPI_REF_REQUIRED_MSG = 'Enter the UTR / reference number after completing UPI payment.';
 
 // UPI-first: UPI is the primary, recommended method; COD remains available.
 const PAY_METHODS = [
@@ -27,6 +32,7 @@ const UPI_IS_DEMO = !(process.env.EXPO_PUBLIC_UPI_ID || process.env.EXPO_PUBLIC_
 export default function CheckoutScreen({ navigation }) {
   const [pay,      setPay]      = useState('UPI');
   const [upiRef,   setUpiRef]   = useState('');
+  const [upiError, setUpiError] = useState('');
   const [placing,  setPlacing]  = useState(false);
   const [selectedAddr, setSelectedAddr] = useState(null);
 
@@ -67,12 +73,12 @@ export default function CheckoutScreen({ navigation }) {
     }
 
     if (pay === 'UPI' && upiRef.trim().length < 6) {
-      Alert.alert(
-        'Enter UPI reference',
-        `Pay ₹${total} to ${UPI_VPA} in your UPI app, then enter the reference / UTR shown there.`,
-      );
+      // Inline error (server enforces the same ≥6-char rule). Clear, visible,
+      // and keyboard-adjacent — no easy-to-miss web Alert.
+      setUpiError(UPI_REF_REQUIRED_MSG);
       return;
     }
+    setUpiError('');
 
     setPlacing(true);
     try {
@@ -98,7 +104,7 @@ export default function CheckoutScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={{ padding: 8 }}>
+        <Pressable onPress={() => goHomeOrBack(navigation)} style={{ padding: 8 }}>
           <Ionicons name="arrow-back" size={20} color={colors.ink} />
         </Pressable>
         <Text style={styles.title}>Checkout</Text>
@@ -220,14 +226,23 @@ export default function CheckoutScreen({ navigation }) {
               4. Place the order — we verify and start it.
             </Text>
             <TextInput
-              style={styles.upiInput}
+              style={[styles.upiInput, upiError && styles.upiInputError]}
               value={upiRef}
-              onChangeText={t => setUpiRef(t.replace(/[^0-9A-Za-z]/g, '').slice(0, 40))}
+              onChangeText={t => {
+                setUpiRef(t.replace(/[^0-9A-Za-z]/g, '').slice(0, 40));
+                if (upiError) setUpiError('');
+              }}
               placeholder="UTR / reference number"
               placeholderTextColor={colors.inkMuted}
               autoCapitalize="characters"
               autoCorrect={false}
             />
+            {upiError ? (
+              <View style={styles.upiErrorRow}>
+                <Ionicons name="alert-circle" size={14} color={colors.danger} />
+                <Text style={styles.upiErrorTxt}>{upiError}</Text>
+              </View>
+            ) : null}
             <Text style={styles.upiNote}>
               Payment shows as “pending” until Quickrons verifies it — we never auto-confirm.
             </Text>
@@ -344,6 +359,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.ink,
     backgroundColor: colors.bgAlt, letterSpacing: 1,
   },
+  upiInputError: { borderColor: colors.danger },
+  upiErrorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -2 },
+  upiErrorTxt: { flex: 1, fontSize: 12, color: colors.danger, fontWeight: '700' },
   upiNote: { fontSize: 11, color: colors.inkMuted, fontStyle: 'italic' },
   radio: {
     width: 20, height: 20, borderRadius: 10,
