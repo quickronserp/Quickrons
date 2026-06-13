@@ -1,11 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import SegmentBadge from '../components/SegmentBadge';
 import SmartImage from '../components/SmartImage';
 import { kitchensApi } from '../lib/api';
+import { confirmAction } from '../lib/confirm';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
@@ -47,7 +49,7 @@ export default function PartnerScreen({ route, navigation }) {
       <View style={styles.loadingWrap}>
         <Ionicons name="alert-circle-outline" size={40} color={colors.inkMuted} />
         <Text style={{ color: colors.inkSoft, marginTop: 8 }}>Kitchen not found</Text>
-        <Pressable onPress={() => navigation.goBack()} style={{ marginTop: 12 }}>
+        <Pressable onPress={() => goHomeOrBack(navigation, 'HomeMain')} style={{ marginTop: 12 }}>
           <Text style={{ color: colors.brand, fontWeight: '700' }}>← Go back</Text>
         </Pressable>
       </View>
@@ -68,25 +70,23 @@ export default function PartnerScreen({ route, navigation }) {
   // Cart partner shape — needs a `name` field for CartScreen to display
   const cartPartner = { ...kitchen, name };
 
-  const handleAdd = (menuItem) => {
+  const handleAdd = async (menuItem) => {
     // Strict check: only block when explicitly set to false (null/undefined = available)
     if (menuItem.isAvailable === false) return;
 
-    // Multi-kitchen guard: if cart has items from a different kitchen, ask user
+    // Multi-kitchen guard: if cart has items from a different kitchen, ask user.
+    // Uses confirmAction (web-safe) — Alert.alert button callbacks don't fire on
+    // web, which previously made "Start new order" a no-op in Chrome.
     const existingPartnerId = items.length > 0 ? items[0].partner?.id : null;
     if (existingPartnerId && existingPartnerId !== cartPartner.id) {
-      Alert.alert(
-        'Start a new order?',
-        `Your cart has items from another kitchen. Clear it and start an order from ${name}?`,
-        [
-          { text: 'Keep current cart', style: 'cancel' },
-          {
-            text: 'Start new order',
-            style: 'destructive',
-            onPress: () => { clear(); add(menuItem, cartPartner); },
-          },
-        ]
-      );
+      const confirmed = await confirmAction({
+        title: 'Start a new order?',
+        message: `Your cart has items from another kitchen. Clear it and start an order from ${name}?`,
+        confirmLabel: 'Start new order',
+      });
+      if (!confirmed) return;
+      clear();
+      add(menuItem, cartPartner);
       return;
     }
 
@@ -108,7 +108,7 @@ export default function PartnerScreen({ route, navigation }) {
             }
           />
           <SafeAreaView style={styles.heroBack} edges={['top']}>
-            <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Pressable onPress={() => goHomeOrBack(navigation, 'HomeMain')} style={styles.backBtn}>
               <Ionicons name="arrow-back" size={20} color={colors.ink} />
             </Pressable>
           </SafeAreaView>

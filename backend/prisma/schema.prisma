@@ -351,6 +351,7 @@ model MenuItem {
   isVeg                  Boolean  @default(true)
   signature              Boolean  @default(false)
   active                 Boolean  @default(true)
+  archivedAt             DateTime?                            // set when the partner "removes" the item; hides it from partner + customer everywhere, but keeps it for historical orders
   sortOrder              Int      @default(0)
   category               String?                              // 'biryani', 'breakfast', etc.
   imageUrl               String?
@@ -367,6 +368,7 @@ model MenuItem {
   orderItems OrderItem[]
 
   @@index([partnerId, active, sortOrder])
+  @@index([partnerId, archivedAt])
   @@index([signature])
 }
 

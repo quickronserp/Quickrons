@@ -136,7 +136,7 @@ router.get('/:id', asyncH(async (req, res) => {
       select: {
         ...KITCHEN_PUBLIC_SELECT,
         menuItems: {
-          where:   { active: true },
+          where:   { active: true, archivedAt: null },
           select:  ITEM_PUBLIC_SELECT,
           orderBy: [{ signature: 'desc' }, { sortOrder: 'asc' }],
           take:    8,
@@ -144,7 +144,7 @@ router.get('/:id', asyncH(async (req, res) => {
       },
     }),
     prisma.menuItem.count({
-      where: { partnerId: req.params.id, active: true },
+      where: { partnerId: req.params.id, active: true, archivedAt: null },
     }),
   ]);
 
@@ -178,8 +178,9 @@ router.get('/:id/menu', asyncH(async (req, res) => {
   if (!kitchen) throw NotFound('Kitchen not found');
 
   const where = {
-    partnerId: req.params.id,
-    active:    true,
+    partnerId:  req.params.id,
+    active:     true,
+    archivedAt: null,
     ...(category            && { category }),
     ...(isVeg !== undefined && { isVeg }),
     ...(q                   && { name: { contains: q.trim(), mode: 'insensitive' } }),
@@ -227,9 +228,10 @@ router.get('/:id/featured', asyncH(async (req, res) => {
   if (!kitchen) throw NotFound('Kitchen not found');
 
   const where = {
-    partnerId: req.params.id,
-    active:    true,
-    signature: true,
+    partnerId:  req.params.id,
+    active:     true,
+    archivedAt: null,
+    signature:  true,
     ...(isVeg !== undefined && { isVeg }),
   };
 

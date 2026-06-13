@@ -540,6 +540,7 @@ const MENU_ITEM_SELECT = {
   isVeg:                  true,
   signature:              true,
   active:                 true,
+  archivedAt:             true,
   sortOrder:              true,
   category:               true,
   imageUrl:               true,
@@ -584,9 +585,12 @@ function cleanBool(v, field) {
 }
 
 // GET /menu — list own items (newest first within active group)
+// Archived (removed) items are excluded — they live on only for historical
+// orders. Temporarily-hidden items (active:false, archivedAt null) still show
+// so the partner can re-enable them.
 router.get('/menu', asyncH(async (req, res) => {
   const items = await prisma.menuItem.findMany({
-    where:   { partnerId: req.partner.id },
+    where:   { partnerId: req.partner.id, archivedAt: null },
     orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { createdAt: 'desc' }],
     select:  MENU_ITEM_SELECT,
   });
@@ -666,7 +670,7 @@ router.patch('/menu/:id', asyncH(async (req, res) => {
   // Cross-field check after merge (load existing values if needed).
   if (data.servingStartMinutes !== undefined || data.servingEndMinutes !== undefined) {
     const cur = await prisma.menuItem.findFirst({
-      where:  { id: req.params.id, partnerId: req.partner.id },
+      where:  { id: req.params.id, partnerId: req.partner.id, archivedAt: null },
       select: { servingStartMinutes: true, servingEndMinutes: true },
     });
     if (!cur) throw NotFound('Menu item not found');
@@ -679,7 +683,7 @@ router.patch('/menu/:id', asyncH(async (req, res) => {
 
   try {
     const item = await prisma.menuItem.update({
-      where:  { id: req.params.id, partnerId: req.partner.id },
+      where:  { id: req.params.id, partnerId: req.partner.id, archivedAt: null },
       data,
       select: MENU_ITEM_SELECT,
     });
@@ -690,13 +694,16 @@ router.patch('/menu/:id', asyncH(async (req, res) => {
   }
 }));
 
-// DELETE /menu/:id — soft delete (active=false). Hard delete is blocked by
-// OrderItem foreign keys. Returns 200 with the updated row.
+// DELETE /menu/:id — soft delete / archive. We never hard-delete: OrderItem
+// rows reference this item (soft FK) and carry a name/price snapshot, so past
+// orders are unaffected either way, but archiving keeps the row intact for
+// reporting. Sets archivedAt + active:false so it disappears from the partner
+// list and every customer-facing query. Idempotent.
 router.delete('/menu/:id', asyncH(async (req, res) => {
   try {
     const item = await prisma.menuItem.update({
       where:  { id: req.params.id, partnerId: req.partner.id },
-      data:   { active: false },
+      data:   { active: false, archivedAt: new Date() },
       select: MENU_ITEM_SELECT,
     });
     res.json({ item });

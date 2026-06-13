@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { partnerApi } from '../lib/api';
 import socketClient from '../lib/socket';
+import { confirmAction } from '../lib/confirm';
 import { colors, radii, space } from '../theme';
 
 const ACTIVE_STATUSES = ['PLACED', 'CONFIRMED', 'PREPARING', 'READY_FOR_PICKUP'];
@@ -222,14 +223,14 @@ export default function PartnerOpsScreen({ navigation }) {
                 color={colors.danger}
                 spinning={activeAction === 'reject'}
                 disabled={anyBusy}
-                onPress={() => {
-                  Alert.alert('Reject Order', 'Reason (optional)?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Reject', style: 'destructive',
-                      onPress: () => doAction(order.id, 'reject',
-                        () => partnerApi.reject(order.id, '', accessToken))
-                    },
-                  ]);
+                onPress={async () => {
+                  const confirmed = await confirmAction({
+                    title: 'Reject this order?',
+                    message: 'The customer will be notified that you can\'t take this order.',
+                    confirmLabel: 'Reject',
+                  });
+                  if (!confirmed) return;
+                  doAction(order.id, 'reject', () => partnerApi.reject(order.id, '', accessToken));
                 }}
               />
             </>

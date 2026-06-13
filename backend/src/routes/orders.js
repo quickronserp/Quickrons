@@ -174,7 +174,7 @@ router.post('/', verifyToken, asyncH(async (req, res) => {
 
   // ── 4. Fetch all menu items from DB in one query ───────────────────────────
   const dbItems = await prisma.menuItem.findMany({
-    where:  { id: { in: reqItemIds }, active: true },
+    where:  { id: { in: reqItemIds }, active: true, archivedAt: null },
     select: {
       id:                     true,
       name:                   true,

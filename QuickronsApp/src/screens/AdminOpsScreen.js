@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { adminApi } from '../lib/api';
+import { confirmAction } from '../lib/confirm';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 
 const STATUS_COLOR = {
@@ -123,23 +125,21 @@ export default function AdminOpsScreen({ navigation }) {
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   async function cancelOrder(id) {
-    Alert.alert('Cancel Order', 'Confirm cancel?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Cancel Order', style: 'destructive',
-        onPress: async () => {
-          setActionLoading(prev => ({ ...prev, [id]: true }));
-          try {
-            await adminApi.cancelOrder(id, 'Admin cancelled', accessToken);
-            await fetchData(true);
-          } catch (e) {
-            Alert.alert('Error', e.message);
-          } finally {
-            setActionLoading(prev => ({ ...prev, [id]: false }));
-          }
-        },
-      },
-    ]);
+    const confirmed = await confirmAction({
+      title: 'Cancel this order?',
+      message: 'The order will be cancelled. This cannot be undone.',
+      confirmLabel: 'Cancel order',
+    });
+    if (!confirmed) return;
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      await adminApi.cancelOrder(id, 'Admin cancelled', accessToken);
+      await fetchData(true);
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   }
 
   async function markPaid(id) {
@@ -154,24 +154,22 @@ export default function AdminOpsScreen({ navigation }) {
     }
   }
 
-  function rejectPayment(id) {
-    Alert.alert('Reject payment?', 'Mark this payment as failed. The order is kept for follow-up.', [
-      { text: 'Back', style: 'cancel' },
-      {
-        text: 'Reject payment', style: 'destructive',
-        onPress: async () => {
-          setActionLoading(prev => ({ ...prev, [id]: true }));
-          try {
-            await adminApi.rejectPayment(id, 'Payment not received', accessToken);
-            await fetchData(true);
-          } catch (e) {
-            Alert.alert('Could not reject', e.message);
-          } finally {
-            setActionLoading(prev => ({ ...prev, [id]: false }));
-          }
-        },
-      },
-    ]);
+  async function rejectPayment(id) {
+    const confirmed = await confirmAction({
+      title: 'Reject this payment?',
+      message: 'Mark this payment as failed. The order is kept for follow-up.',
+      confirmLabel: 'Reject payment',
+    });
+    if (!confirmed) return;
+    setActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      await adminApi.rejectPayment(id, 'Payment not received', accessToken);
+      await fetchData(true);
+    } catch (e) {
+      Alert.alert('Could not reject', e.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   }
 
   // ── Render helpers ──────────────────────────────────────────────────────────

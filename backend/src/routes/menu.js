@@ -79,9 +79,10 @@ router.get('/featured', asyncH(async (req, res) => {
   };
 
   const where = {
-    active:    true,
-    signature: true,
-    partner:   partnerFilter,
+    active:     true,
+    archivedAt: null,
+    signature:  true,
+    partner:    partnerFilter,
     ...(isVeg !== undefined && { isVeg }),
   };
 
@@ -116,8 +117,9 @@ router.get('/', asyncH(async (req, res) => {
   };
 
   const where = {
-    active:  true,
-    partner: partnerFilter,
+    active:     true,
+    archivedAt: null,
+    partner:    partnerFilter,
     ...(partnerId           && { partnerId }),
     ...(category            && { category }),
     ...(isVeg !== undefined && { isVeg }),

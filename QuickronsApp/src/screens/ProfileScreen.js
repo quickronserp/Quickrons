@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../state/CartContext';
 import { useAuth } from '../state/AuthContext';
 import { useI18n, SUPPORTED_LANGS } from '../i18n';
+import { confirmAction } from '../lib/confirm';
 import { colors, radii, space, segmentMeta } from '../theme';
 
 const LANG_NATIVE = { en: 'English', ml: 'മലയാളം', hi: 'हिन्दी' };
@@ -42,6 +43,16 @@ export default function ProfileScreen({ navigation }) {
 
   const displayName = user?.name  || user?.fullName || '';
   const phone       = user?.phone || '';
+
+  // Web-safe sign-out confirmation (Alert.alert buttons don't fire on web).
+  async function confirmSignOut() {
+    const confirmed = await confirmAction({
+      title: 'Sign out?',
+      message: 'You\'ll need to log in again with your phone number.',
+      confirmLabel: 'Sign out',
+    });
+    if (confirmed) signOut();
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bgAlt }} edges={['top']}>
@@ -119,7 +130,7 @@ export default function ProfileScreen({ navigation }) {
           onPress={() => navigation.navigate('AdminOps')}
         />
 
-        <Action icon="log-out" color={colors.danger} title="Sign out" onPress={signOut} />
+        <Action icon="log-out" color={colors.danger} title="Sign out" onPress={confirmSignOut} />
       </ScrollView>
     </SafeAreaView>
   );

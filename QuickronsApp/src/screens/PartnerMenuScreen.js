@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { partnerMenuApi, API_BASE } from '../lib/api';
 import { pickImage, imagePickerAvailable, IMAGE_TARGETS } from '../lib/imagePick';
+import { confirmAction } from '../lib/confirm';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 
 // Backend may return a relative path (/uploads/menu/<id>/<file>.jpg) for
@@ -261,25 +263,30 @@ export default function PartnerMenuScreen({ navigation }) {
     }
   }
 
-  async function deactivate(item) {
-    Alert.alert(
-      'Hide item from customers?',
-      `${item.name} will be hidden from the storefront. You can re-enable it anytime.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Hide item', style: 'destructive',
-          onPress: async () => {
-            try {
-              await partnerMenuApi.remove(item.id, accessToken);
-              await fetchItems(true);
-            } catch (e) {
-              Alert.alert('Could not hide', e.message);
-            }
-          },
-        },
-      ],
-    );
+  // Remove = soft delete on the server (active:false). Historical orders keep
+  // their own snapshot of the item, so this never breaks past orders. The item
+  // disappears from the customer storefront and from this list immediately.
+  //
+  // Uses confirmAction (window.confirm on web) because Alert.alert button
+  // callbacks don't fire on React Native Web — previously the DELETE never ran.
+  async function removeItem(item) {
+    const confirmed = await confirmAction({
+      title: 'Remove this item?',
+      message: `"${item.name}" will be removed from your menu and hidden from customers. Past orders are kept. This can't be undone from the app.`,
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
+
+    try {
+      await partnerMenuApi.remove(item.id, accessToken);
+      // Optimistically drop it from the list so it vanishes right away…
+      setItems(prev => prev.filter(i => i.id !== item.id));
+      // …then reconcile with the server (also drops any now-inactive rows).
+      await fetchItems(true);
+    } catch (e) {
+      Alert.alert('Could not remove', e.message || 'Server error');
+      await fetchItems(true); // resync if the optimistic drop was wrong
+    }
   }
 
   // ── Editor view ──────────────────────────────────────────────────────────
@@ -552,7 +559,7 @@ export default function PartnerMenuScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
+        <Pressable onPress={() => goHomeOrBack(navigation, 'PartnerOps')} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </Pressable>
         <View style={{ flex: 1 }}>
@@ -644,7 +651,7 @@ export default function PartnerMenuScreen({ navigation }) {
                     </Text>
                   </Pressable>
                   {item.active && (
-                    <Pressable onPress={() => deactivate(item)} style={styles.actBtn}>
+                    <Pressable onPress={() => removeItem(item)} style={styles.actBtn}>
                       <Ionicons name="trash-outline" size={14} color={colors.danger} />
                       <Text style={[styles.actBtnTxt, { color: colors.danger }]}>Remove</Text>
                     </Pressable>

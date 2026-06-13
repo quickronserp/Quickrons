@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../state/AuthContext';
 import { partnerApi, partnerMenuApi, API_BASE } from '../lib/api';
 import { pickImage, imagePickerAvailable, IMAGE_TARGETS } from '../lib/imagePick';
+import { goHomeOrBack } from '../lib/nav';
 import { colors, radii, space } from '../theme';
 
 const GALLERY_MAX = 12;
@@ -180,7 +181,7 @@ export default function PartnerBrandingScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.iconBtn}>
+        <Pressable onPress={() => goHomeOrBack(navigation, 'PartnerOps')} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </Pressable>
         <View style={{ flex: 1 }}>
